@@ -1,0 +1,200 @@
+{% extends 'consultations/base.html' %}
+
+{% block title %}Analytics - MedInsight{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">Analytics & Insights</h1>
+        <p class="text-gray-600">Track usage patterns and clinical trends</p>
+    </div>
+    
+    <!-- Overview Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-gray-900 mb-1">{{ total }}</p>
+            <p class="text-sm text-gray-600">Total Consultations</p>
+        </div>
+        
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-gray-900 mb-1">{{ reviewed }}</p>
+            <p class="text-sm text-gray-600">Reviewed by Clinicians</p>
+        </div>
+        
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-gray-900 mb-1">{{ pending }}</p>
+            <p class="text-sm text-gray-600">Pending Review</p>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Daily Activity Chart -->
+        <div class="bg-white rounded-xl card-shadow p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-6">Daily Activity (Last 30 Days)</h2>
+            <canvas id="dailyChart" height="250"></canvas>
+        </div>
+        
+        <!-- Monthly Trends -->
+        <div class="bg-white rounded-xl card-shadow p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-6">Monthly Trends</h2>
+            <canvas id="monthlyChart" height="250"></canvas>
+        </div>
+    </div>
+    
+    <!-- Language Distribution -->
+    <div class="bg-white rounded-xl card-shadow p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-6">Language Distribution</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <canvas id="languageChart" height="200"></canvas>
+            </div>
+            <div class="flex items-center">
+                <div id="languageLegend" class="space-y-3 w-full"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+    // Chart colors
+    const colors = {
+        purple: 'rgb(102, 126, 234)',
+        blue: 'rgb(59, 130, 246)',
+        green: 'rgb(34, 197, 94)',
+        yellow: 'rgb(234, 179, 8)',
+        red: 'rgb(239, 68, 68)',
+        orange: 'rgb(249, 115, 22)'
+    };
+    
+    // Daily Activity Chart
+    const dailyData = {{ daily_stats|safe }};
+    const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+    new Chart(dailyCtx, {
+        type: 'line',
+        data: {
+            labels: dailyData.map(d => d.date),
+            datasets: [{
+                label: 'Consultations',
+                data: dailyData.map(d => d.count),
+                borderColor: colors.purple,
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                },
+                x: {
+                    ticks: {
+                        maxTicksLimit: 10,
+                        callback: function(val, index) {
+                            const date = new Date(this.getLabelForValue(val));
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Monthly Trends Chart
+    const monthlyData = {{ monthly_stats|safe }};
+    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+            labels: monthlyData.map(d => d.month),
+            datasets: [{
+                label: 'Consultations',
+                data: monthlyData.map(d => d.count),
+                backgroundColor: colors.blue
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                }
+            }
+        }
+    });
+    
+    // Language Distribution Chart
+    const languageData = {{ language_data|safe }};
+    const languageCtx = document.getElementById('languageChart').getContext('2d');
+    const chartColors = [colors.purple, colors.blue, colors.green, colors.yellow, colors.orange, colors.red];
+    
+    new Chart(languageCtx, {
+        type: 'doughnut',
+        data: {
+            labels: languageData.map(d => d.language.toUpperCase()),
+            datasets: [{
+                data: languageData.map(d => d.count),
+                backgroundColor: chartColors.slice(0, languageData.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+    
+    // Create custom legend
+    const legendContainer = document.getElementById('languageLegend');
+    languageData.forEach((item, index) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+        legendItem.innerHTML = `
+            <div class="flex items-center">
+                <div class="w-4 h-4 rounded mr-3" style="background-color: ${chartColors[index]}"></div>
+                <span class="font-medium text-gray-900">${item.language.toUpperCase()}</span>
+            </div>
+            <span class="text-gray-600 font-semibold">${item.count}</span>
+        `;
+        legendContainer.appendChild(legendItem);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends 'consultations/base.html' %}
+
+{% block title %}Consultation Results - MedInsight{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Patient Summary Card -->
+    <div class="bg-white rounded-xl card-shadow p-6 mb-6 fade-in">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-bold text-gray-800">Patient Case</h2>
+            <span class="section-badge bg-purple-100 text-purple-700">
+                {{ consultation.get_language_display }}
+            </span>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+                <p class="text-sm text-gray-600">Patient</p>
+                <p class="font-semibold text-gray-800">{{ consultation.patient_name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Age / Gender</p>
+                <p class="font-semibold text-gray-800">{{ consultation.patient_age }} years / {{ consultation.patient_gender }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Duration</p>
+                <p class="font-semibold text-gray-800">{{ consultation.duration }}</p>
+            </div>
+        </div>
+        
+        <div class="border-t pt-4">
+            <p class="text-sm text-gray-600 mb-1">Chief Complaint</p>
+            <p class="text-gray-800">{{ consultation.chief_complaint }}</p>
+        </div>
+    </div>
+    
+    <!-- AI Analysis Section -->
+    <div class="space-y-6">
+        <!-- Loading State -->
+        <div id="loading-state" class="bg-white rounded-xl card-shadow p-8 text-center">
+            <div class="flex flex-col items-center space-y-4">
+                <div class="relative w-16 h-16">
+                    <div class="absolute inset-0 border-4 border-purple-200 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Analyzing Patient Data...</h3>
+                    <p class="text-gray-600">MedInsight AI is processing the clinical information</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Summary Section -->
+        <div id="summary-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="section-badge bg-blue-100 text-blue-700">Summary</span>
+            </div>
+            <div id="summary-content" class="streaming-text text-gray-700 prose max-w-none"></div>
+        </div>
+        
+        <!-- Diagnosis Section -->
+        <div id="diagnosis-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="section-badge bg-green-100 text-green-700">Diagnosis</span>
+            </div>
+            <div id="diagnosis-content" class="streaming-text text-gray-700 prose max-w-none"></div>
+        </div>
+        
+        <!-- Management Section -->
+        <div id="management-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="section-badge bg-purple-100 text-purple-700">Management</span>
+            </div>
+            <div id="management-content" class="streaming-text text-gray-700 prose max-w-none"></div>
+        </div>
+        
+        <!-- Actions (shown after completion) -->
+        <div id="action-buttons" class="flex items-center justify-end space-x-4 hidden">
+            <a href="{% url 'consultation_form' %}" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200">
+                New Consultation
+            </a>
+            <a href="{% url 'consultation_edit' consultation.pk %}" class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200">
+                Review & Edit
+            </a>
+        </div>
+    </div>
+    
+    <!-- Error State -->
+    <div id="error-state" class="bg-red-50 border border-red-200 rounded-xl p-6 hidden">
+        <div class="flex items-start space-x-3">
+            <svg class="w-6 h-6 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <h4 class="font-semibold text-red-900 mb-1">Error Processing Request</h4>
+                <p class="text-sm text-red-800" id="error-message"></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Server-Sent Events for real-time streaming
+    const consultationId = {{ consultation.pk }};
+    const streamUrl = "{% url 'stream_ai_response' consultation.pk %}";
+    
+    // Elements
+    const loadingState = document.getElementById('loading-state');
+    const summarySection = document.getElementById('summary-section');
+    const diagnosisSection = document.getElementById('diagnosis-section');
+    const managementSection = document.getElementById('management-section');
+    const summaryContent = document.getElementById('summary-content');
+    const diagnosisContent = document.getElementById('diagnosis-content');
+    const managementContent = document.getElementById('management-content');
+    const actionButtons = document.getElementById('action-buttons');
+    const errorState = document.getElementById('error-state');
+    const errorMessage = document.getElementById('error-message');
+    
+    let fullResponse = '';
+    let currentSection = 'summary';
+    
+    // Initialize EventSource for streaming
+    const eventSource = new EventSource(streamUrl);
+    
+    eventSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'start') {
+                // Hide loading, show summary section
+                loadingState.classList.add('hidden');
+                summarySection.classList.remove('hidden');
+            }
+            else if (data.type === 'chunk') {
+                // Accumulate response
+                fullResponse += data.content;
+                
+                // Try to parse and display sections progressively
+                displayProgressiveContent(fullResponse);
+            }
+            else if (data.type === 'complete') {
+                // Display final parsed data
+                if (data.data) {
+                    displayFinalContent(data.data);
+                }
+                
+                // Show action buttons
+                actionButtons.classList.remove('hidden');
+                
+                // Close the connection
+                eventSource.close();
+            }
+        } catch (error) {
+            console.error('Error parsing stream data:', error);
+        }
+    };
+    
+    eventSource.onerror = function(error) {
+        console.error('EventSource error:', error);
+        loadingState.classList.add('hidden');
+        errorState.classList.remove('hidden');
+        errorMessage.textContent = 'Failed to connect to AI service. Please try again.';
+        eventSource.close();
+    };
+    
+    function displayProgressiveContent(text) {
+        // Try to detect sections in the streaming text
+        const summaryMatch = text.match(/summary["\s:]+([^}]*)/i);
+        const diagnosisMatch = text.match(/diagnosis["\s:]+([^}]*)/i);
+        const managementMatch = text.match(/management["\s:]+([^}]*)/i);
+        
+        if (summaryMatch) {
+            summaryContent.innerHTML = formatText(cleanJsonText(summaryMatch[1]));
+        }
+        
+        if (diagnosisMatch) {
+            diagnosisSection.classList.remove('hidden');
+            diagnosisContent.innerHTML = formatText(cleanJsonText(diagnosisMatch[1]));
+        }
+        
+        if (managementMatch) {
+            managementSection.classList.remove('hidden');
+            managementContent.innerHTML = formatText(cleanJsonText(managementMatch[1]));
+        }
+    }
+    
+    function displayFinalContent(data) {
+        // Display the final parsed content
+        if (data.summary) {
+            summaryContent.innerHTML = formatText(data.summary);
+        }
+        
+        if (data.diagnosis) {
+            diagnosisSection.classList.remove('hidden');
+            diagnosisContent.innerHTML = formatText(data.diagnosis);
+        }
+        
+        if (data.management) {
+            managementSection.classList.remove('hidden');
+            managementContent.innerHTML = formatText(data.management);
+        }
+    }
+    
+    function cleanJsonText(text) {
+        // Remove JSON artifacts from text
+        return text
+            .replace(/^["\s]+/, '')
+            .replace(/["\s,}]+$/, '')
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .trim();
+    }
+    
+    function formatText(text) {
+        // Convert markdown-like formatting to HTML
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>')
+            .replace(/^(.+)$/, '<p>$1</p>')
+            .replace(/-\s(.+)/g, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>)/s, '<ul class="list-disc pl-5 space-y-1">$1</ul>');
+    }
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        if (eventSource.readyState !== EventSource.CLOSED) {
+            eventSource.close();
+        }
+    });
+</script>
+{% endblock %}

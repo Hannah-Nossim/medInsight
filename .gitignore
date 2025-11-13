@@ -1,0 +1,39 @@
+# Python virtual environment
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.mo
+*.sqlite3
+db.sqlite3
+
+# Media and static files
+media/
+staticfiles/
+static/
+
+# PyCharm / VSCode
+.idea/
+.vscode/
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Node modules (if using JS frontend)
+node_mo_

@@ -1,0 +1,219 @@
+{% extends 'consultations/base.html' %}
+
+{% block title %}Dashboard - MedInsight{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        <p class="text-gray-600">Overview of your clinical consultations and insights</p>
+    </div>
+    
+    <!-- System Status Alert -->
+    {% if not system_configured %}
+    <div class="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <div class="flex items-center">
+            <svg class="w-6 h-6 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <div class="flex-1">
+                <p class="text-yellow-800 font-medium">System Not Configured</p>
+                <p class="text-yellow-700 text-sm">Please configure your API settings before creating consultations.</p>
+            </div>
+            <a href="{% url 'settings' %}" class="ml-4 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-lg font-medium hover:bg-yellow-500 transition">
+                Configure Now
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <a href="{% url 'consultation_form' %}" class="bg-white rounded-xl p-6 card-shadow hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">New Consultation</h3>
+            <p class="text-sm text-gray-600">Start a new patient assessment</p>
+        </a>
+        
+        <a href="{% url 'consultation_history' %}" class="bg-white rounded-xl p-6 card-shadow hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">History</h3>
+            <p class="text-sm text-gray-600">View past consultations</p>
+        </a>
+        
+        <a href="{% url 'analytics' %}" class="bg-white rounded-xl p-6 card-shadow hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">Analytics</h3>
+            <p class="text-sm text-gray-600">View insights & trends</p>
+        </a>
+        
+        <a href="{% url 'settings' %}" class="bg-white rounded-xl p-6 card-shadow hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-12 h-12 bg-gray-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">Settings</h3>
+            <p class="text-sm text-gray-600">Configure AI models</p>
+        </a>
+    </div>
+    
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Today</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ today_count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">This Week</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ week_count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">This Month</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ month_count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600 mb-1">Total</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ total_count }}</p>
+                </div>
+                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Recent Consultations -->
+        <div class="lg:col-span-2 bg-white rounded-xl card-shadow">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-gray-900">Recent Consultations</h2>
+                    <a href="{% url 'consultation_history' %}" class="text-purple-600 hover:text-purple-800 text-sm font-medium">View All</a>
+                </div>
+            </div>
+            
+            <div class="divide-y divide-gray-200">
+                {% if recent_consultations %}
+                    {% for consultation in recent_consultations %}
+                    <a href="{% url 'consultation_detail' consultation.pk %}" class="block p-6 hover:bg-gray-50 transition">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-gray-900">{{ consultation.patient_name }}</h3>
+                            <span class="text-xs px-2 py-1 rounded-full {% if consultation.is_reviewed %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ consultation.status }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">{{ consultation.chief_complaint|truncatewords:15 }}</p>
+                        <div class="flex items-center text-xs text-gray-500">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            {{ consultation.created_at|timesince }} ago
+                        </div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-12 text-center">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-gray-600 mb-4">No consultations yet</p>
+                        <a href="{% url 'consultation_form' %}" class="inline-block px-6 py-2 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition">
+                            Create Your First Consultation
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Language Distribution -->
+        <div class="bg-white rounded-xl card-shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900">Language Distribution</h2>
+            </div>
+            
+            <div class="p-6">
+                {% if language_stats %}
+                    <div class="space-y-4">
+                        {% for lang in language_stats %}
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-medium text-gray-700">{{ lang.language|upper }}</span>
+                                <span class="text-gray-600">{{ lang.count }}</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="gradient-bg h-2 rounded-full" style="width: {% widthratio lang.count total_count 100 %}%"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-gray-600 text-center py-8">No data available</p>
+                {% endif %}
+            </div>
+            
+            <div class="p-6 border-t border-gray-200 bg-gray-50">
+                <div class="text-sm text-gray-600">
+                    <strong>{{ reviewed_count }}</strong> of <strong>{{ total_count }}</strong> consultations reviewed
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

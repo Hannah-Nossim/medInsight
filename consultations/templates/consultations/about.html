@@ -1,0 +1,101 @@
+<!-- about.html -->
+{% extends 'consultations/base.html' %}
+
+{% block title %}About MedInsight{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="text-center mb-12">
+        <h1 class="text-5xl font-bold text-gray-900 mb-4">About MedInsight</h1>
+        <p class="text-xl text-gray-600">AI-Powered Clinical Decision Support for Healthcare Excellence</p>
+    </div>
+    
+    <!-- Mission -->
+    <div class="bg-white rounded-xl card-shadow p-8 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Our Mission</h2>
+        <p class="text-gray-700 leading-relaxed mb-4">
+            MedInsight is designed to empower healthcare professionals with intelligent, evidence-based clinical decision support. By leveraging advanced AI technology, we aim to enhance diagnostic accuracy, improve patient outcomes, and streamline clinical workflows across Kenya and beyond.
+        </p>
+        <p class="text-gray-700 leading-relaxed">
+            We believe that technology should augment—not replace—clinical expertise. MedInsight serves as a powerful assistant that processes patient information rapidly while leaving final clinical decisions where they belong: with qualified healthcare professionals.
+        </p>
+    </div>
+    
+    <!-- How It Works -->
+    <div class="bg-white rounded-xl card-shadow p-8 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">How MedInsight Works</h2>
+        <div class="space-y-6">
+            <div class="flex items-start">
+                <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">1</div>
+                <div>
+                    <h3 class="font-bold text-gray-900 mb-2">Data Input</h3>
+                    <p class="text-gray-700">Clinicians enter patient demographics, symptoms, vital signs, and relevant medical history through our intuitive interface.</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">2</div>
+                <div>
+                    <h3 class="font-bold text-gray-900 mb-2">AI Analysis</h3>
+                    <p class="text-gray-700">Our AI processes the information using advanced language models trained on medical knowledge, generating comprehensive clinical insights in real-time.</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">3</div>
+                <div>
+                    <h3 class="font-bold text-gray-900 mb-2">Clinical Summary</h3>
+                    <p class="text-gray-700">The system generates a structured output including clinical summary, possible diagnoses, and management recommendations.</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start">
+                <div class="w-12 h-12 gradient-bg rounded-lg flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">4</div>
+                <div>
+                    <h3 class="font-bold text-gray-900 mb-2">Clinician Review</h3>
+                    <p class="text-gray-700">Healthcare professionals review, verify, and edit the AI-generated content based on their clinical judgment and expertise.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Key Features -->
+    <div class="bg-white rounded-xl card-shadow p-8 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Key Features</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">🚀 Real-Time Streaming</h3>
+                <p class="text-gray-700">Watch AI insights generate in real-time with our streaming technology.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">🌍 Multi-Language Support</h3>
+                <p class="text-gray-700">English, Swahili, and Kenyan native languages for inclusive healthcare.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">✅ Clinician Verification</h3>
+                <p class="text-gray-700">Full control to review and edit AI recommendations.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">📊 Analytics Dashboard</h3>
+                <p class="text-gray-700">Track usage patterns and clinical trends over time.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">🔧 Flexible Configuration</h3>
+                <p class="text-gray-700">Choose from multiple AI providers and models.</p>
+            </div>
+            <div>
+                <h3 class="font-bold text-gray-900 mb-2">📄 Complete Records</h3>
+                <p class="text-gray-700">Comprehensive documentation with PDF export.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Disclaimer -->
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded">
+        <h3 class="font-bold text-yellow-900 mb-2">Important Disclaimer</h3>
+        <p class="text-yellow-800 text-sm">
+            MedInsight is a clinical decision support tool designed to assist healthcare professionals. It does not replace professional medical judgment, diagnosis, or treatment. All clinical decisions should be made by qualified healthcare professionals based on their expertise, patient assessment, and current clinical guidelines. Always verify AI-generated recommendations with established medical protocols.
+        </p>
+    </div>
+</div>
+{% endblock %}
