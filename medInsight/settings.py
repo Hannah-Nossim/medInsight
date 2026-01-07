@@ -15,7 +15,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-jim(o%!-y^7fgpp3^$r81
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['.railway.app']
 
 # CRITICAL FOR RAILWAY: prevents "403 Forbidden" errors on forms
 CSRF_TRUSTED_ORIGINS = ['https://*.railway.app']
