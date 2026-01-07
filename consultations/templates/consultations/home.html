@@ -12,13 +12,13 @@
                 Welcome to <span class="gradient-bg bg-clip-text text-transparent">MedInsight</span>
             </h1>
             <p class="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-                AI-Powered Clinical Decision Support for Healthcare Professionals
+                NLP-Powered Clinical Decision Support for Healthcare Professionals
             </p>
             <p class="text-lg text-gray-500 mb-12 max-w-2xl mx-auto">
-                Transform patient symptoms into actionable clinical insights in seconds. Powered by advanced AI to support better healthcare outcomes.
+                Transform patient symptoms into actionable clinical insights in seconds. Powered by advanced NLP to support better healthcare outcomes.
             </p>
             <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <a href="{% url 'dashboard' %}" class="px-8 py-4 gradient-bg text-white rounded-lg font-semibold text-lg hover:shadow-xl transition duration-200 transform hover:-translate-y-1">
+                <a href="{% url 'consultation_form' %}" class="px-8 py-4 gradient-bg text-white rounded-lg font-semibold text-lg hover:shadow-xl transition duration-200 transform hover:-translate-y-1">
                     Get Started
                 </a>
                 <a href="{% url 'about' %}" class="px-8 py-4 bg-white text-purple-600 border-2 border-purple-600 rounded-lg font-semibold text-lg hover:bg-purple-50 transition duration-200">
@@ -72,7 +72,7 @@
                     </svg>
                 </div>
                 <h3 class="text-xl font-bold text-gray-900 mb-3">Lightning Fast</h3>
-                <p class="text-gray-600">Get clinical insights in seconds with real-time AI streaming. No more waiting.</p>
+                <p class="text-gray-600">Get clinical insights in seconds with real-time NLP streaming. No more waiting.</p>
             </div>
             
             <!-- Feature 2 -->
@@ -94,7 +94,7 @@
                     </svg>
                 </div>
                 <h3 class="text-xl font-bold text-gray-900 mb-3">Clinician-Verified</h3>
-                <p class="text-gray-600">Review and edit all AI suggestions. You maintain full control and clinical judgment.</p>
+                <p class="text-gray-600">Review and edit all NLP suggestions. You maintain full control and clinical judgment.</p>
             </div>
             
             <!-- Feature 4 -->
@@ -109,17 +109,6 @@
             </div>
             
             <!-- Feature 5 -->
-            <div class="bg-white rounded-xl p-8 card-shadow hover:shadow-2xl transition duration-300">
-                <div class="w-16 h-16 gradient-bg rounded-lg flex items-center justify-center mb-6">
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-3">Flexible AI Models</h3>
-                <p class="text-gray-600">Choose from multiple AI providers and models. Configure to your needs.</p>
-            </div>
-            
-            <!-- Feature 6 -->
             <div class="bg-white rounded-xl p-8 card-shadow hover:shadow-2xl transition duration-300">
                 <div class="w-16 h-16 gradient-bg rounded-lg flex items-center justify-center mb-6">
                     <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,13 +138,13 @@
             </div>
             <div class="text-center">
                 <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mx-auto mb-4">2</div>
-                <h3 class="text-lg font-bold text-gray-900 mb-2">AI Analysis</h3>
-                <p class="text-gray-600">Watch as AI generates insights in real-time</p>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">NLP Analysis</h3>
+                <p class="text-gray-600">Watch as NLP generates insights in real-time</p>
             </div>
             <div class="text-center">
                 <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl font-bold mx-auto mb-4">3</div>
                 <h3 class="text-lg font-bold text-gray-900 mb-2">Review & Edit</h3>
-                <p class="text-gray-600">Verify and adjust AI recommendations as needed</p>
+                <p class="text-gray-600">Verify and adjust NLP recommendations as needed</p>
             </div>
             <div class="text-center">
                 <div class="w-20 h-20 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-3xl font-bold mx-auto mb-4">4</div>
@@ -170,8 +159,8 @@
 <div class="py-20 gradient-bg">
     <div class="max-w-4xl mx-auto px-4 text-center">
         <h2 class="text-4xl font-bold text-white mb-6">Ready to Transform Your Clinical Workflow?</h2>
-        <p class="text-xl text-purple-100 mb-8">Join healthcare professionals using AI to deliver better patient care</p>
-        <a href="{% url 'dashboard' %}" class="inline-block px-10 py-4 bg-white text-purple-600 rounded-lg font-bold text-lg hover:shadow-2xl transition duration-200 transform hover:-translate-y-1">
+        <p class="text-xl text-purple-100 mb-8">Join healthcare professionals using NLP to deliver better patient care</p>
+        <a href="{% url 'consultation_form' %}" class="inline-block px-10 py-4 bg-white text-purple-600 rounded-lg font-bold text-lg hover:shadow-2xl transition duration-200 transform hover:-translate-y-1">
             Start Using MedInsight
         </a>
     </div>

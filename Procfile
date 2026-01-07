@@ -1,0 +1,1 @@
+web: gunicorn medInsight.wsgi --log-file -

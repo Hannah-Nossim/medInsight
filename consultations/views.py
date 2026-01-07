@@ -1,3 +1,5 @@
+from django.apps import apps 
+import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
@@ -11,7 +13,7 @@ from .models import Consultation, SystemSettings, AnalyticsSnapshot
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .services import LLMService
 from .utils import generate_pdf_report
-
+                   
 
 # ==================== PUBLIC PAGES ====================
 
@@ -130,136 +132,90 @@ def consultation_result(request, pk):
     })
 
 
-# def stream_ai_response(request, pk):
-#     """Stream the AI response in real-time using Server-Sent Events"""
-#     consultation = get_object_or_404(Consultation, pk=pk)
+def stream_ai_response(request, pk):
+    """
+    Stream the AI response using the globally loaded T5 model from apps.py.
+    """
+    consultation = get_object_or_404(Consultation, pk=pk)
     
-#     def event_stream():
-#         settings = SystemSettings.load()
-        
-#         # Check if system is configured
-#         if not settings.is_configured():
-#             error_msg = json.dumps({
-#                 "type": "error",
-#                 "message": "System not configured. Please configure API settings."
-#             })
-#             yield f'data: {error_msg}\n\n'
-#             return
-        
-#         llm_service = LLMService(settings)
-        
-#         # Start streaming
-#         yield 'data: {"type": "start"}\n\n'
-        
-#         accumulated_response = ""
-        
-#         try:
-#             for chunk in llm_service.stream_response(consultation):
-#                 if chunk.startswith("Error:"):
-#                     error_msg = json.dumps({
-#                         "type": "error",
-#                         "message": chunk
-#                     })
-#                     yield f'data: {error_msg}\n\n'
-#                     return
-                
-#                 accumulated_response += chunk
-#                 yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
-            
-#             # Parse the complete response
-#             parsed_data = llm_service._parse_response(accumulated_response)
-            
-#             # Save to database
-#             consultation.summary = parsed_data.get('summary', '')
-#             consultation.diagnosis = parsed_data.get('diagnosis', '')
-#             consultation.management = parsed_data.get('management', '')
-#             consultation.save()
-            
-#             # Send completion signal
-#             yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
-        
-#         except Exception as e:
-#             error_msg = json.dumps({
-#                 "type": "error",
-#                 "message": f"Error processing request: {str(e)}"
-#             })
-#             yield f'data: {error_msg}\n\n'
-    
-#     response = StreamingHttpResponse(
-#         event_stream(),
-#         content_type='text/event-stream'
-#     )
-#     response['Cache-Control'] = 'no-cache'
-#     response['X-Accel-Buffering'] = 'no'
-    
-#     return response
+    def event_stream():
+        try:
+            # We access the model loaded in ConsultationsConfig inside apps.py
+            app_config = apps.get_app_config('consultations')
+            model = app_config.model
+            tokenizer = app_config.tokenizer
 
+            # Safety Check: Ensure model is loaded
+            if not model or not tokenizer:
+                error_msg = json.dumps({
+                    "type": "error",
+                    "message": "Model not loaded. Please restart the server."
+                })
+                yield f'data: {error_msg}\n\n'
+                return
 
-# def stream_ai_response(request, pk):
-#     """Stream the AI response using local model"""
-#     consultation = get_object_or_404(Consultation, pk=pk)
-    
-#     def event_stream():
-#         from .ml_service import LocalModelService
-        
-#         try:
-#             ml_service = LocalModelService()
-            
-#             # Check if model is loaded
-#             if not ml_service.is_model_loaded():
-#                 yield 'data: {"type": "status", "message": "Loading model... (first time takes 10-20 seconds)"}\n\n'
-#                 ml_service.load_model()
-#                 yield 'data: {"type": "status", "message": "Model loaded! Generating response..."}\n\n'
-            
-#             # Start
-#             yield 'data: {"type": "start"}\n\n'
-            
-#             # Generate response
-#             parsed_data = ml_service.generate_response(consultation)
-            
-#             # Simulate streaming by sending full response in chunks
-#             full_response = f"""SUMMARY: {parsed_data['summary']}
+            yield 'data: {"type": "start"}\n\n'
 
-# DIAGNOSIS: {parsed_data['diagnosis']}
+            # We create a prompt using the patient's symptoms
+            input_text = f"summarize: Patient {consultation.patient_name} reports: {consultation.chief_complaint}"
+            
+            # Tokenize the input
+            inputs = tokenizer(
+                input_text, 
+                return_tensors="pt", 
+                max_length=512, 
+                truncation=True
+            )
 
-# MANAGEMENT: {parsed_data['management']}"""
+            # The model generates the prediction here
+            outputs = model.generate(
+                inputs.input_ids,
+                max_length=256,
+                num_beams=2,
+                early_stopping=True
+            )
             
-#             # Send as chunks for visual effect
-#             chunk_size = 50
-#             for i in range(0, len(full_response), chunk_size):
-#                 chunk = full_response[i:i+chunk_size]
-#                 yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
+            # Decode the numbers back to text
+            full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+            # We split the full text into small chunks to simulate a "typing" effect
+            chunk_size = 20
+            for i in range(0, len(full_response), chunk_size):
+                chunk = full_response[i:i+chunk_size]
+                yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
+                time.sleep(0.05) # Tiny delay for visual effect
+
+            # For T5, we put the whole response into the summary field.
+            # If your model outputs specific sections, you can split string here.
+            parsed_data = {
+                'summary': full_response,
+                'diagnosis': "See summary",
+                'management': "See summary"
+            }
             
-#             # Save to database
-#             consultation.summary = parsed_data['summary']
-#             consultation.diagnosis = parsed_data['diagnosis']
-#             consultation.management = parsed_data['management']
-#             consultation.save()
-            
-#             # Send completion
-#             yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
-            
-#         except FileNotFoundError as e:
-#             error_msg = json.dumps({
-#                 "type": "error",
-#                 "message": f"Model not found. Please check model path in settings.py. Error: {str(e)}"
-#             })
-#             yield f'data: {error_msg}\n\n'
-#         except Exception as e:
-#             error_msg = json.dumps({
-#                 "type": "error",
-#                 "message": f"Error: {str(e)}"
-#             })
-#             yield f'data: {error_msg}\n\n'
+            # Save to Database
+            consultation.summary = parsed_data['summary']
+            consultation.diagnosis = parsed_data['diagnosis']
+            consultation.management = parsed_data['management']
+            consultation.save()
+
+            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
+
+        except Exception as e:
+            error_msg = json.dumps({
+                "type": "error",
+                "message": f"Error processing request: {str(e)}"
+            })
+            yield f'data: {error_msg}\n\n'
     
-#     response = StreamingHttpResponse(
-#         event_stream(),
-#         content_type='text/event-stream'
-#     )
-#     response['Cache-Control'] = 'no-cache'
-#     response['X-Accel-Buffering'] = 'no'
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
     
-#     return response
+    return response
 
 
 def stream_ai_response(request, pk):
