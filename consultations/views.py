@@ -1,5 +1,9 @@
-from django.apps import apps 
+import os
+import json
 import time
+from datetime import timedelta
+
+from django.apps import apps 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
@@ -7,23 +11,22 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from django.contrib import messages
 from django.core.paginator import Paginator
-from datetime import timedelta
-import json
+from django.conf import settings as django_settings
+
+from huggingface_hub import InferenceClient
+
 from .models import Consultation, SystemSettings, AnalyticsSnapshot
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
-from .services import LLMService
+# Note: LocalModelService import is handled inside functions to prevent circular imports if needed
 from .utils import generate_pdf_report
-                   
 
 # ==================== PUBLIC PAGES ====================
 
 def home(request):
     """Homepage/Landing page"""
-    # Get some stats for the homepage
     total_consultations = Consultation.objects.count()
     languages_supported = len(Consultation.LANGUAGE_CHOICES)
     
-    # Get recent activity (last 7 days)
     week_ago = timezone.now() - timedelta(days=7)
     recent_consultations = Consultation.objects.filter(
         created_at__gte=week_ago
@@ -48,43 +51,29 @@ def help_page(request):
 
 
 # ==================== DASHBOARD ====================
+
 def dashboard(request):
     """Main dashboard with stats and recent consultations"""
-    # Today's stats
     today = timezone.now().date()
-    today_consultations = Consultation.objects.filter(
-        created_at__date=today
-    ).count()
+    today_consultations = Consultation.objects.filter(created_at__date=today).count()
     
-    # This week's stats
     week_start = today - timedelta(days=today.weekday())
-    week_consultations = Consultation.objects.filter(
-        created_at__date__gte=week_start
-    ).count()
+    week_consultations = Consultation.objects.filter(created_at__date__gte=week_start).count()
     
-    # This month's stats
     month_consultations = Consultation.objects.filter(
         created_at__year=today.year,
         created_at__month=today.month
     ).count()
     
-    # Total stats
     total_consultations = Consultation.objects.count()
     reviewed_count = Consultation.objects.filter(is_reviewed=True).count()
-    
-    # Recent consultations (last 10)
     recent_consultations = Consultation.objects.all()[:10]
     
-    # Language distribution
     language_stats = Consultation.objects.values('language').annotate(
         count=Count('id')
     ).order_by('-count')
     
-    # Check if model exists
-    from .ml_service import LocalModelService
-    import os
-    from django.conf import settings as django_settings
-    
+    # Check if local model folder exists
     model_path = getattr(django_settings, 'LOCAL_MODEL_PATH', None)
     model_exists = os.path.exists(model_path) if model_path else False
     
@@ -96,10 +85,11 @@ def dashboard(request):
         'reviewed_count': reviewed_count,
         'recent_consultations': recent_consultations,
         'language_stats': language_stats,
-        'system_configured': model_exists,  # Check if model folder exists
+        'system_configured': model_exists,
         'settings': SystemSettings.load(),
     }
     return render(request, 'consultations/dashboard.html', context)
+
 
 # ==================== CONSULTATION FLOW ====================
 
@@ -114,14 +104,11 @@ def consultation_form(request):
         else:
             messages.error(request, 'Please correct the errors below.')
     else:
-        # Pre-fill with default language from settings
         settings = SystemSettings.load()
         initial = {'language': settings.default_language}
         form = ConsultationForm(initial=initial)
     
-    return render(request, 'consultations/consultation_form.html', {
-        'form': form
-    })
+    return render(request, 'consultations/consultation_form.html', {'form': form})
 
 
 def consultation_result(request, pk):
@@ -134,156 +121,108 @@ def consultation_result(request, pk):
 
 def stream_ai_response(request, pk):
     """
-    Stream the AI response using the globally loaded T5 model from apps.py.
+    Stream the AI response. 
+    Switches between Local Model and Hugging Face API based on SystemSettings.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
+    settings = SystemSettings.load()
     
-    def event_stream():
-        try:
-            # We access the model loaded in ConsultationsConfig inside apps.py
-            app_config = apps.get_app_config('consultations')
-            model = app_config.model
-            tokenizer = app_config.tokenizer
+    # Assuming SystemSettings has a boolean field 'use_local_model'
+    # If not, you can rely on checking if an API key exists to toggle modes
+    use_local_model = getattr(settings, 'use_local_model', True) 
 
-            # Safety Check: Ensure model is loaded
-            if not model or not tokenizer:
-                error_msg = json.dumps({
-                    "type": "error",
-                    "message": "Model not loaded. Please restart the server."
-                })
+    # ---------------------------------------------------------
+    # MODE 1: LOCAL MODEL
+    # ---------------------------------------------------------
+    if use_local_model:
+        def event_stream_local():
+            from .ml_service import LocalModelService
+            try:
+                ml_service = LocalModelService()
+                
+                if not ml_service.is_model_loaded():
+                    yield 'data: {"type": "status", "message": "Loading model... (first time takes 10-20 seconds)"}\n\n'
+                    ml_service.load_model()
+                    yield 'data: {"type": "status", "message": "Model loaded! Generating response..."}\n\n'
+                
+                yield 'data: {"type": "start"}\n\n'
+                
+                # Generate full response
+                parsed_data = ml_service.generate_response(consultation)
+                
+                # Format for streaming simulation
+                full_response = f"SUMMARY: {parsed_data['summary']}\n\nDIAGNOSIS: {parsed_data['diagnosis']}\n\nMANAGEMENT: {parsed_data['management']}"
+                
+                # Send chunks
+                chunk_size = 50
+                for i in range(0, len(full_response), chunk_size):
+                    chunk = full_response[i:i+chunk_size]
+                    yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
+                
+                # Save
+                consultation.summary = parsed_data['summary']
+                consultation.diagnosis = parsed_data['diagnosis']
+                consultation.management = parsed_data['management']
+                consultation.save()
+                
+                yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
+                
+            except Exception as e:
+                error_msg = json.dumps({"type": "error", "message": f"Local Model Error: {str(e)}"})
                 yield f'data: {error_msg}\n\n'
-                return
 
-            yield 'data: {"type": "start"}\n\n'
+        stream_generator = event_stream_local()
 
-            # We create a prompt using the patient's symptoms
-            input_text = f"summarize: Patient {consultation.patient_name} reports: {consultation.chief_complaint}"
-            
-            # Tokenize the input
-            inputs = tokenizer(
-                input_text, 
-                return_tensors="pt", 
-                max_length=512, 
-                truncation=True
-            )
+    # ---------------------------------------------------------
+    # MODE 2: HUGGING FACE API
+    # ---------------------------------------------------------
+    else:
+        def event_stream_api():
+            try:
+                repo_id = "Nossim/my-t5-finetuned"
+                
+                # Get token from Environment or Settings (Secure approach)
+                token = os.environ.get("HF_TOKEN") or getattr(settings, 'hf_api_token', None)
+                
+                if not token:
+                    yield 'data: {"type": "error", "message": "HF_TOKEN not found in environment or settings."}\n\n'
+                    return
 
-            # The model generates the prediction here
-            outputs = model.generate(
-                inputs.input_ids,
-                max_length=256,
-                num_beams=2,
-                early_stopping=True
-            )
-            
-            # Decode the numbers back to text
-            full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                client = InferenceClient(model=repo_id, token=token)
+                yield 'data: {"type": "start"}\n\n'
 
-            # We split the full text into small chunks to simulate a "typing" effect
-            chunk_size = 20
-            for i in range(0, len(full_response), chunk_size):
-                chunk = full_response[i:i+chunk_size]
-                yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
-                time.sleep(0.05) # Tiny delay for visual effect
+                input_text = f"summarize: Patient: {consultation.patient_name}. Symptoms: {consultation.chief_complaint}."
+                full_response = ""
+                
+                # Real-time streaming from API
+                for token_chunk in client.text_generation(input_text, max_new_tokens=200, stream=True):
+                    yield f'data: {json.dumps({"type": "chunk", "content": token_chunk})}\n\n'
+                    full_response += token_chunk
 
-            # For T5, we put the whole response into the summary field.
-            # If your model outputs specific sections, you can split string here.
-            parsed_data = {
-                'summary': full_response,
-                'diagnosis': "See summary",
-                'management': "See summary"
-            }
-            
-            # Save to Database
-            consultation.summary = parsed_data['summary']
-            consultation.diagnosis = parsed_data['diagnosis']
-            consultation.management = parsed_data['management']
-            consultation.save()
+                # Parse API response (Basic implementation)
+                parsed_data = {
+                    'summary': full_response,
+                    'diagnosis': "See summary", 
+                    'management': "See summary"
+                }
+                
+                consultation.summary = full_response
+                consultation.is_reviewed = False
+                consultation.save()
+                
+                yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
 
-            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
+            except Exception as e:
+                error_msg = json.dumps({"type": "error", "message": f"API Error: {str(e)}"})
+                yield f'data: {error_msg}\n\n'
 
-        except Exception as e:
-            error_msg = json.dumps({
-                "type": "error",
-                "message": f"Error processing request: {str(e)}"
-            })
-            yield f'data: {error_msg}\n\n'
-    
-    response = StreamingHttpResponse(
-        event_stream(),
-        content_type='text/event-stream'
-    )
+        stream_generator = event_stream_api()
+
+    # Return the stream
+    response = StreamingHttpResponse(stream_generator, content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'
     response['X-Accel-Buffering'] = 'no'
-    
     return response
-
-
-def stream_ai_response(request, pk):
-    """Stream the AI response using local model"""
-    consultation = get_object_or_404(Consultation, pk=pk)
-    
-    def event_stream():
-        from .ml_service import LocalModelService
-        
-        try:
-            ml_service = LocalModelService()
-            
-            # Check if model is loaded
-            if not ml_service.is_model_loaded():
-                yield 'data: {"type": "status", "message": "Loading model... (first time takes 10-20 seconds)"}\n\n'
-                ml_service.load_model()
-                yield 'data: {"type": "status", "message": "Model loaded! Generating response..."}\n\n'
-            
-            # Start
-            yield 'data: {"type": "start"}\n\n'
-            
-            # Generate response
-            parsed_data = ml_service.generate_response(consultation)
-            
-            # Simulate streaming by sending full response in chunks
-            full_response = f"""SUMMARY: {parsed_data['summary']}
-
-DIAGNOSIS: {parsed_data['diagnosis']}
-
-MANAGEMENT: {parsed_data['management']}"""
-            
-            # Send as chunks for visual effect
-            chunk_size = 50
-            for i in range(0, len(full_response), chunk_size):
-                chunk = full_response[i:i+chunk_size]
-                yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
-            
-            # Save to database
-            consultation.summary = parsed_data['summary']
-            consultation.diagnosis = parsed_data['diagnosis']
-            consultation.management = parsed_data['management']
-            consultation.save()
-            
-            # Send completion
-            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
-            
-        except FileNotFoundError as e:
-            error_msg = json.dumps({
-                "type": "error",
-                "message": f"Model not found. Please check model path in settings.py. Error: {str(e)}"
-            })
-            yield f'data: {error_msg}\n\n'
-        except Exception as e:
-            error_msg = json.dumps({
-                "type": "error",
-                "message": f"Error: {str(e)}"
-            })
-            yield f'data: {error_msg}\n\n'
-    
-    response = StreamingHttpResponse(
-        event_stream(),
-        content_type='text/event-stream'
-    )
-    response['Cache-Control'] = 'no-cache'
-    response['X-Accel-Buffering'] = 'no'
-    
-    return response
-
 
 
 def consultation_edit(request, pk):
@@ -330,19 +269,17 @@ def consultation_history(request):
             Q(diagnosis__icontains=search_query)
         )
     
-    # Filter by language
+    # Filters
     language_filter = request.GET.get('language', '')
     if language_filter:
         consultations = consultations.filter(language=language_filter)
     
-    # Filter by status
     status_filter = request.GET.get('status', '')
     if status_filter == 'reviewed':
         consultations = consultations.filter(is_reviewed=True)
     elif status_filter == 'pending':
         consultations = consultations.filter(is_reviewed=False)
     
-    # Filter by date range
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
     if date_from:
@@ -381,27 +318,20 @@ def consultation_delete(request, pk):
 
 def analytics(request):
     """Analytics and insights page"""
-    # Overall stats
     total = Consultation.objects.count()
     reviewed = Consultation.objects.filter(is_reviewed=True).count()
     
-    # Language breakdown
     language_data = list(Consultation.objects.values('language').annotate(
         count=Count('id')
     ).order_by('-count'))
     
-    # Consultations over time (last 30 days)
     thirty_days_ago = timezone.now() - timedelta(days=30)
     daily_stats = []
     for i in range(30):
         date = (thirty_days_ago + timedelta(days=i)).date()
         count = Consultation.objects.filter(created_at__date=date).count()
-        daily_stats.append({
-            'date': date.strftime('%Y-%m-%d'),
-            'count': count
-        })
+        daily_stats.append({'date': date.strftime('%Y-%m-%d'), 'count': count})
     
-    # Monthly comparison (last 6 months)
     monthly_stats = []
     for i in range(6):
         date = timezone.now() - timedelta(days=30*i)
@@ -409,10 +339,7 @@ def analytics(request):
             created_at__year=date.year,
             created_at__month=date.month
         ).count()
-        monthly_stats.insert(0, {
-            'month': date.strftime('%b %Y'),
-            'count': count
-        })
+        monthly_stats.insert(0, {'month': date.strftime('%b %Y'), 'count': count})
     
     context = {
         'total': total,
@@ -426,60 +353,6 @@ def analytics(request):
 
 
 # ==================== SETTINGS ====================
-
-# def settings_view(request):
-#     """System settings configuration"""
-#     settings = SystemSettings.load()
-    
-#     if request.method == 'POST':
-#         form = SystemSettingsForm(request.POST, instance=settings)
-#         if form.is_valid():
-#             form.save()
-#             messages.success(request, 'Settings saved successfully!')
-#             return redirect('settings')
-#     else:
-#         form = SystemSettingsForm(instance=settings)
-    
-#     context = {
-#         'form': form,
-#         'settings': settings,
-#     }
-#     return render(request, 'consultations/settings.html', context)
-
-
-# def test_api_connection(request):
-#     """Test API connection endpoint"""
-#     if request.method == 'POST':
-#         settings = SystemSettings.load()
-        
-#         if not settings.is_configured():
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': 'Please configure API settings first.'
-#             })
-        
-#         try:
-#             llm_service = LLMService(settings)
-#             success = llm_service.test_connection()
-            
-#             if success:
-#                 return JsonResponse({
-#                     'success': True,
-#                     'message': 'Connection successful! API is working correctly.'
-#                 })
-#             else:
-#                 return JsonResponse({
-#                     'success': False,
-#                     'message': 'Connection failed. Please check your API key and settings.'
-#                 })
-        
-#         except Exception as e:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': f'Error: {str(e)}'
-#             })
-    
-#     return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 def settings_view(request):
     """System settings configuration"""
@@ -510,78 +383,18 @@ def settings_view(request):
     return render(request, 'consultations/settings.html', context)
 
 
-# ==================== EXPORT ====================
-
-# def export_consultation_pdf(request, pk):
-#     """Export consultation as PDF"""
-#     consultation = get_object_or_404(Consultation, pk=pk)
-#     pdf = generate_pdf_report(consultation)
-    
-#     response = HttpResponse(pdf, content_type='application/pdf')
-#     filename = f"consultation_{consultation.patient_name}_{consultation.created_at.strftime('%Y%m%d')}.pdf"
-#     response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-#     return response
-
-
-# from django.http import JsonResponse
-
-# def test_model(request):
-#     """Test the local model"""
-#     if request.method == 'POST':
-#         from .ml_service import LocalModelService
-        
-#         try:
-#             ml_service = LocalModelService()
-#             success, message = ml_service.test_model()
-            
-#             return JsonResponse({
-#                 'success': success,
-#                 'message': message
-#             })
-#         except Exception as e:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': f'Error: {str(e)}'
-#             })
-    
-#     return JsonResponse({'success': False, 'message': 'Invalid request'})
-
-
-# def model_info(request):
-#     """Get model information"""
-#     from .ml_service import LocalModelService
-    
-#     try:
-#         ml_service = LocalModelService()
-#         info = ml_service.get_model_info()
-#         return JsonResponse(info)
-#     except Exception as e:
-#         return JsonResponse({
-#             'loaded': False,
-#             'error': str(e)
-#         })
-
-# Add these at the end of views.py
+# ==================== UTILS & TESTS ====================
 
 def test_model(request):
     """Test the local model"""
     if request.method == 'POST':
         from .ml_service import LocalModelService
-        
         try:
             ml_service = LocalModelService()
             success, message = ml_service.test_model()
-            
-            return JsonResponse({
-                'success': success,
-                'message': message
-            })
+            return JsonResponse({'success': success, 'message': message})
         except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'message': f'Error: {str(e)}'
-            })
+            return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
     
     return JsonResponse({'success': False, 'message': 'Invalid request'})
 
@@ -589,30 +402,22 @@ def test_model(request):
 def model_info(request):
     """Get model information"""
     from .ml_service import LocalModelService
-    
     try:
         ml_service = LocalModelService()
         info = ml_service.get_model_info()
         return JsonResponse(info)
     except Exception as e:
-        return JsonResponse({
-            'loaded': False,
-            'error': str(e)
-        })
+        return JsonResponse({'loaded': False, 'error': str(e)})
 
 
 def export_consultation_pdf(request, pk):
     """Export consultation as PDF"""
     consultation = get_object_or_404(Consultation, pk=pk)
-    
     try:
-        from .utils import generate_pdf_report
         pdf = generate_pdf_report(consultation)
-        
         response = HttpResponse(pdf, content_type='application/pdf')
         filename = f"consultation_{consultation.patient_name}_{consultation.created_at.strftime('%Y%m%d')}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
         return response
     except Exception as e:
         messages.error(request, f'Error generating PDF: {str(e)}')
