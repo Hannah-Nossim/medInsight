@@ -187,17 +187,10 @@ class Consultation(models.Model):
     ]
     
     # Input
-    patient_name = models.CharField(max_length=200)
-    patient_age = models.IntegerField()
-    patient_gender = models.CharField(
-        max_length=10, 
-        choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')]
+    # Replaced detailed fields with a single clinical case text field
+    clinical_case = models.TextField(
+        help_text="Full clinical case narrative including symptoms, history, and observations."
     )
-    chief_complaint = models.TextField()
-    symptoms_description = models.TextField()
-    duration = models.CharField(max_length=100)
-    vital_signs = models.TextField(blank=True, null=True)
-    medical_history = models.TextField(blank=True, null=True)
     
     # AI Generated Output
     summary = models.TextField(blank=True, null=True)
@@ -218,11 +211,12 @@ class Consultation(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['-created_at']),
-            models.Index(fields=['patient_name']),
+            # Removed index on patient_name since the field was deleted
         ]
     
     def __str__(self):
-        return f"Consultation for {self.patient_name} - {self.created_at.strftime('%Y-%m-%d')}"
+        # Updated to use ID instead of Name
+        return f"Consultation #{self.pk} - {self.created_at.strftime('%Y-%m-%d')}"
     
     @property
     def status(self):

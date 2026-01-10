@@ -4,39 +4,42 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto">
-    <!-- Header -->
     <div class="mb-6">
-        <h2 class="text-3xl font-bold text-gray-800 mb-2">Review & Edit Consultation</h2>
-        <p class="text-gray-600">Review the AI-generated insights and make any necessary adjustments.</p>
+        <h2 class="text-3xl font-bold text-gray-800 mb-2">Review & Edit Consultation #{{ consultation.pk }}</h2>
+        <p class="text-gray-600">Review the NLP-generated insights and make any necessary adjustments.</p>
     </div>
     
-    <!-- Patient Info Card -->
-    <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border border-purple-100">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <p class="text-sm text-purple-700 font-medium">Patient</p>
-                <p class="text-gray-800 font-semibold">{{ consultation.patient_name }}</p>
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-8 border border-purple-100">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b border-purple-100 pb-4">
+            <div class="flex items-center space-x-4">
+                <div>
+                    <p class="text-xs text-purple-700 font-bold uppercase tracking-wide">Consultation ID</p>
+                    <p class="text-gray-800 font-semibold">#{{ consultation.pk }}</p>
+                </div>
+                <div class="h-8 w-px bg-purple-200"></div>
+                <div>
+                    <p class="text-xs text-purple-700 font-bold uppercase tracking-wide">Date</p>
+                    <p class="text-gray-800 font-semibold">{{ consultation.created_at|date:"M d, Y" }}</p>
+                </div>
             </div>
-            <div>
-                <p class="text-sm text-purple-700 font-medium">Age</p>
-                <p class="text-gray-800 font-semibold">{{ consultation.patient_age }} years</p>
+            <div class="mt-2 md:mt-0">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white text-purple-800 shadow-sm border border-purple-100">
+                    Language: {{ consultation.get_language_display }}
+                </span>
             </div>
-            <div>
-                <p class="text-sm text-purple-700 font-medium">Gender</p>
-                <p class="text-gray-800 font-semibold">{{ consultation.patient_gender }}</p>
-            </div>
-            <div>
-                <p class="text-sm text-purple-700 font-medium">Date</p>
-                <p class="text-gray-800 font-semibold">{{ consultation.created_at|date:"M d, Y" }}</p>
+        </div>
+        
+        <div>
+            <p class="text-xs text-purple-700 font-bold uppercase tracking-wide mb-2">Original Clinical Case</p>
+            <div class="bg-white/80 rounded-lg p-4 text-gray-700 text-sm whitespace-pre-wrap border border-purple-100 max-h-40 overflow-y-auto">
+                {{ consultation.clinical_case }}
             </div>
         </div>
     </div>
     
-    <!-- Edit Form -->
     <form method="post" class="space-y-6">
         {% csrf_token %}
         
-        <!-- Summary Section -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden">
             <div class="bg-blue-500 px-6 py-3">
                 <h3 class="text-white font-semibold flex items-center space-x-2">
@@ -58,7 +61,6 @@
             </div>
         </div>
         
-        <!-- Diagnosis Section -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden">
             <div class="bg-green-500 px-6 py-3">
                 <h3 class="text-white font-semibold flex items-center space-x-2">
@@ -80,7 +82,6 @@
             </div>
         </div>
         
-        <!-- Management Section -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden">
             <div class="bg-purple-500 px-6 py-3">
                 <h3 class="text-white font-semibold flex items-center space-x-2">
@@ -102,37 +103,30 @@
             </div>
         </div>
         
-        <!-- Action Buttons -->
         <div class="flex items-center justify-between pt-4">
-            <a href="{% url 'consultation_result' consultation.pk %}" class="text-gray-600 hover:text-gray-800 font-medium flex items-center space-x-1">
+            <a href="{% url 'consultation_detail' consultation.pk %}" class="text-gray-600 hover:text-gray-800 font-medium flex items-center space-x-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                 </svg>
-                <span>Back to Results</span>
+                <span>Cancel Editing</span>
             </a>
             
-            <div class="flex items-center space-x-4">
-                <a href="{% url 'consultation_form' %}" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200">
-                    Cancel
-                </a>
-                <button type="submit" class="px-8 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200 transform hover:-translate-y-0.5 flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    <span>Save Changes</span>
-                </button>
-            </div>
+            <button type="submit" class="px-8 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200 transform hover:-translate-y-0.5 flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Save Changes</span>
+            </button>
         </div>
     </form>
     
-    <!-- Info Banner -->
     <div class="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <div class="flex items-start space-x-3">
             <svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <p class="text-sm text-yellow-800">
-                <strong>Clinical Responsibility:</strong> These AI-generated insights are meant to support clinical decision-making. Always apply your professional judgment and verify recommendations with current clinical guidelines.
+                <strong>Clinical Responsibility:</strong> These NLP-generated insights are meant to support clinical decision-making. Always apply your professional judgment and verify recommendations with current clinical guidelines.
             </p>
         </div>
     </div>

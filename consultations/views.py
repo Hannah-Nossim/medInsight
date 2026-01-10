@@ -1,23 +1,20 @@
 import os
 import json
-import time
+import re
 from datetime import timedelta
 
-from django.apps import apps 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
-from django.views.decorators.http import require_http_methods
 from django.db.models import Q, Count
 from django.utils import timezone
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.conf import settings as django_settings
 
-from huggingface_hub import InferenceClient
-
+# Import the new service we created
+from .services import LLMService 
 from .models import Consultation, SystemSettings, AnalyticsSnapshot
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
-# Note: LocalModelService import is handled inside functions to prevent circular imports if needed
 from .utils import generate_pdf_report
 
 # ==================== PUBLIC PAGES ====================
@@ -73,9 +70,9 @@ def dashboard(request):
         count=Count('id')
     ).order_by('-count')
     
-    # Check if local model folder exists
-    model_path = getattr(django_settings, 'LOCAL_MODEL_PATH', None)
-    model_exists = os.path.exists(model_path) if model_path else False
+    # Check configuration
+    settings = SystemSettings.load()
+    hf_token_configured = bool(os.environ.get("HF_TOKEN") or getattr(settings, 'hf_api_token', None))
     
     context = {
         'today_count': today_consultations,
@@ -85,8 +82,8 @@ def dashboard(request):
         'reviewed_count': reviewed_count,
         'recent_consultations': recent_consultations,
         'language_stats': language_stats,
-        'system_configured': model_exists,
-        'settings': SystemSettings.load(),
+        'system_configured': hf_token_configured,
+        'settings': settings,
     }
     return render(request, 'consultations/dashboard.html', context)
 
@@ -94,12 +91,12 @@ def dashboard(request):
 # ==================== CONSULTATION FLOW ====================
 
 def consultation_form(request):
-    """Display the form for entering patient symptoms"""
+    """Display the form for entering clinical case"""
     if request.method == 'POST':
         form = ConsultationForm(request.POST)
         if form.is_valid():
             consultation = form.save()
-            messages.success(request, 'Consultation created successfully!')
+            messages.success(request, 'Clinical case recorded successfully!')
             return redirect('consultation_result', pk=consultation.pk)
         else:
             messages.error(request, 'Please correct the errors below.')
@@ -121,107 +118,46 @@ def consultation_result(request, pk):
 
 def stream_ai_response(request, pk):
     """
-    Stream the AI response. 
-    Switches between Local Model and Hugging Face API based on SystemSettings.
+    Stream the AI response using the LLMService.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
-    settings = SystemSettings.load()
     
-    # Assuming SystemSettings has a boolean field 'use_local_model'
-    # If not, you can rely on checking if an API key exists to toggle modes
-    use_local_model = getattr(settings, 'use_local_model', True) 
+    def event_stream():
+        try:
+            # Initialize the service
+            llm_service = LLMService()
+            yield 'data: {"type": "start"}\n\n'
+            
+            full_text_buffer = ""
+            
+            # Use the service's stream generator
+            # This handles prompting, API calls, and DB saving internally
+            for token_content in llm_service.stream_response(consultation):
+                yield f'data: {json.dumps({"type": "chunk", "content": token_content})}\n\n'
+                full_text_buffer += token_content
+            
+            # Re-fetch the saved consultation to get the parsed fields
+            # (The service saves them before finishing the stream)
+            consultation.refresh_from_db()
+            
+            parsed_data = {
+                'summary': consultation.summary,
+                'diagnosis': consultation.diagnosis,
+                'management': consultation.management
+            }
+            
+            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
 
-    # ---------------------------------------------------------
-    # MODE 1: LOCAL MODEL
-    # ---------------------------------------------------------
-    if use_local_model:
-        def event_stream_local():
-            from .ml_service import LocalModelService
-            try:
-                ml_service = LocalModelService()
-                
-                if not ml_service.is_model_loaded():
-                    yield 'data: {"type": "status", "message": "Loading model... (first time takes 10-20 seconds)"}\n\n'
-                    ml_service.load_model()
-                    yield 'data: {"type": "status", "message": "Model loaded! Generating response..."}\n\n'
-                
-                yield 'data: {"type": "start"}\n\n'
-                
-                # Generate full response
-                parsed_data = ml_service.generate_response(consultation)
-                
-                # Format for streaming simulation
-                full_response = f"SUMMARY: {parsed_data['summary']}\n\nDIAGNOSIS: {parsed_data['diagnosis']}\n\nMANAGEMENT: {parsed_data['management']}"
-                
-                # Send chunks
-                chunk_size = 50
-                for i in range(0, len(full_response), chunk_size):
-                    chunk = full_response[i:i+chunk_size]
-                    yield f'data: {json.dumps({"type": "chunk", "content": chunk})}\n\n'
-                
-                # Save
-                consultation.summary = parsed_data['summary']
-                consultation.diagnosis = parsed_data['diagnosis']
-                consultation.management = parsed_data['management']
-                consultation.save()
-                
-                yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
-                
-            except Exception as e:
-                error_msg = json.dumps({"type": "error", "message": f"Local Model Error: {str(e)}"})
-                yield f'data: {error_msg}\n\n'
+        except Exception as e:
+            error_msg = json.dumps({"type": "error", "message": f"AI Service Error: {str(e)}"})
+            yield f'data: {error_msg}\n\n'
 
-        stream_generator = event_stream_local()
-
-    # ---------------------------------------------------------
-    # MODE 2: HUGGING FACE API
-    # ---------------------------------------------------------
-    else:
-        def event_stream_api():
-            try:
-                repo_id = "Nossim/my-t5-finetuned"
-                
-                # Get token from Environment or Settings (Secure approach)
-                token = os.environ.get("HF_TOKEN") or getattr(settings, 'hf_api_token', None)
-                
-                if not token:
-                    yield 'data: {"type": "error", "message": "HF_TOKEN not found in environment or settings."}\n\n'
-                    return
-
-                client = InferenceClient(model=repo_id, token=token)
-                yield 'data: {"type": "start"}\n\n'
-
-                input_text = f"summarize: Patient: {consultation.patient_name}. Symptoms: {consultation.chief_complaint}."
-                full_response = ""
-                
-                # Real-time streaming from API
-                for token_chunk in client.text_generation(input_text, max_new_tokens=200, stream=True):
-                    yield f'data: {json.dumps({"type": "chunk", "content": token_chunk})}\n\n'
-                    full_response += token_chunk
-
-                # Parse API response (Basic implementation)
-                parsed_data = {
-                    'summary': full_response,
-                    'diagnosis': "See summary", 
-                    'management': "See summary"
-                }
-                
-                consultation.summary = full_response
-                consultation.is_reviewed = False
-                consultation.save()
-                
-                yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
-
-            except Exception as e:
-                error_msg = json.dumps({"type": "error", "message": f"API Error: {str(e)}"})
-                yield f'data: {error_msg}\n\n'
-
-        stream_generator = event_stream_api()
+    stream_generator = event_stream()
 
     # Return the stream
     response = StreamingHttpResponse(stream_generator, content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'
-    response['X-Accel-Buffering'] = 'no'
+    response['X-Accel-Buffering'] = 'no' 
     return response
 
 
@@ -264,9 +200,9 @@ def consultation_history(request):
     search_query = request.GET.get('search', '')
     if search_query:
         consultations = consultations.filter(
-            Q(patient_name__icontains=search_query) |
-            Q(chief_complaint__icontains=search_query) |
-            Q(diagnosis__icontains=search_query)
+            Q(clinical_case__icontains=search_query) |
+            Q(diagnosis__icontains=search_query) |
+            Q(management__icontains=search_query)
         )
     
     # Filters
@@ -367,13 +303,8 @@ def settings_view(request):
     else:
         form = SystemSettingsForm(instance=settings_obj)
     
-    # Get model info
-    from .ml_service import LocalModelService
-    try:
-        ml_service = LocalModelService()
-        model_info = ml_service.get_model_info()
-    except:
-        model_info = {'loaded': False, 'device': 'unknown'}
+    # We simplified this since we don't have a local model
+    model_info = {'loaded': True, 'type': 'Hugging Face API'}
     
     context = {
         'form': form,
@@ -383,32 +314,7 @@ def settings_view(request):
     return render(request, 'consultations/settings.html', context)
 
 
-# ==================== UTILS & TESTS ====================
-
-def test_model(request):
-    """Test the local model"""
-    if request.method == 'POST':
-        from .ml_service import LocalModelService
-        try:
-            ml_service = LocalModelService()
-            success, message = ml_service.test_model()
-            return JsonResponse({'success': success, 'message': message})
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
-    
-    return JsonResponse({'success': False, 'message': 'Invalid request'})
-
-
-def model_info(request):
-    """Get model information"""
-    from .ml_service import LocalModelService
-    try:
-        ml_service = LocalModelService()
-        info = ml_service.get_model_info()
-        return JsonResponse(info)
-    except Exception as e:
-        return JsonResponse({'loaded': False, 'error': str(e)})
-
+# ==================== UTILS ====================
 
 def export_consultation_pdf(request, pk):
     """Export consultation as PDF"""
@@ -416,7 +322,7 @@ def export_consultation_pdf(request, pk):
     try:
         pdf = generate_pdf_report(consultation)
         response = HttpResponse(pdf, content_type='application/pdf')
-        filename = f"consultation_{consultation.patient_name}_{consultation.created_at.strftime('%Y%m%d')}.pdf"
+        filename = f"consultation_{consultation.pk}_{consultation.created_at.strftime('%Y%m%d')}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     except Exception as e:

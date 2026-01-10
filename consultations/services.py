@@ -1,161 +1,116 @@
-# consultations/services.py
+import os
+import re
 import json
-import requests
-
 from django.conf import settings
+from huggingface_hub import InferenceClient
 
 class LLMService:
     """
-    Service to interact with small LLM API.
-    Supports: OpenAI, Anthropic, Groq, or any OpenAI-compatible API
+    Service to interact with Hugging Face Inference API.
+    Refactored to support the single 'clinical_case' input field.
     """
     
     def __init__(self):
-        self.api_key = settings.LLM_API_KEY
-        self.api_url = settings.LLM_API_URL  # e.g., https://api.groq.com/v1/chat/completions
-        self.model = settings.LLM_MODEL  # e.g., "llama-3.1-8b-instant"
-    
+        # 1. Get Token: Try environment variable first, then Django settings
+        self.api_token = os.environ.get("HF_TOKEN") or getattr(settings, 'HF_API_TOKEN', None)
+        
+        # 2. Your specific model repo on Hugging Face
+        self.repo_id = "Nossim/my-t5-finetuned"
+        
+        if self.api_token:
+            self.client = InferenceClient(model=self.repo_id, token=self.api_token)
+        else:
+            self.client = None
+            print("Warning: HF_TOKEN not found. LLMService will fail if called.")
+
     def create_prompt(self, consultation):
-        """Create a structured prompt for the LLM"""
-        prompt = f"""You are MedInsight, an AI medical assistant helping clinicians. Based on the patient information below, provide:
+        """
+        Create the prompt using the single clinical case text.
+        """
+        # T5 models usually work best with a simple prefix
+        return f"summarize: {consultation.clinical_case}"
 
-1. **SUMMARY**: A concise clinical summary of the case
-2. **DIAGNOSIS**: Possible diagnoses (differential diagnosis if applicable)
-3. **MANAGEMENT**: Recommended management plan including investigations and treatment
-
-**Patient Information:**
-- Name: {consultation.patient_name}
-- Age: {consultation.patient_age} years
-- Gender: {consultation.patient_gender}
-- Chief Complaint: {consultation.chief_complaint}
-- Symptoms: {consultation.symptoms_description}
-- Duration: {consultation.duration}
-"""
-        
-        if consultation.vital_signs:
-            prompt += f"- Vital Signs: {consultation.vital_signs}\n"
-        
-        if consultation.medical_history:
-            prompt += f"- Medical History: {consultation.medical_history}\n"
-        
-        prompt += """
-Respond in the following JSON format:
-{
-    "summary": "...",
-    "diagnosis": "...",
-    "management": "..."
-}
-
-Respond in """ + consultation.get_language_display() + """ language."""
-        
-        return prompt
-    
     def stream_response(self, consultation):
         """
-        Stream the LLM response in real-time
-        This is a generator function that yields chunks
+        Stream the LLM response in real-time.
+        Yields text chunks for the frontend and saves the final result to DB.
         """
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a medical AI assistant. Provide accurate, evidence-based medical information."
-                },
-                {
-                    "role": "user",
-                    "content": self.create_prompt(consultation)
-                }
-            ],
-            "stream": True,
-            "temperature": 0.3,  # Lower temperature for more focused medical responses
-            "max_tokens": 2000
-        }
-        
+        if not self.client:
+            yield 'data: {"type": "error", "message": "Server Config Error: HF_TOKEN missing"}\n\n'
+            return
+
+        prompt = self.create_prompt(consultation)
+        full_response = ""
+
         try:
-            response = requests.post(
-                self.api_url,
-                headers=headers,
-                json=payload,
-                stream=True,
-                timeout=60
+            # Call HF API with streaming
+            stream = self.client.text_generation(
+                prompt, 
+                max_new_tokens=512, 
+                stream=True
             )
-            response.raise_for_status()
+
+            for token in stream:
+                # Handle different token formats (string vs object)
+                content = token if isinstance(token, str) else token.token.text
+                
+                # Yield pure text content for the view to wrap in JSON
+                yield content
+                full_response += content
+
+            # After streaming is done, parse and save to Database
+            parsed_data = self._parse_response(full_response)
             
-            accumulated_text = ""
-            
-            for line in response.iter_lines():
-                if line:
-                    line = line.decode('utf-8')
-                    if line.startswith('data: '):
-                        data = line[6:]  # Remove 'data: ' prefix
-                        
-                        if data == '[DONE]':
-                            break
-                        
-                        try:
-                            json_data = json.loads(data)
-                            delta = json_data.get('choices', [{}])[0].get('delta', {})
-                            content = delta.get('content', '')
-                            
-                            if content:
-                                accumulated_text += content
-                                yield content
-                        
-                        except json.JSONDecodeError:
-                            continue
-            
-            # Parse the final JSON response
-            return self._parse_response(accumulated_text)
-            
+            consultation.summary = parsed_data['summary']
+            consultation.diagnosis = parsed_data['diagnosis']
+            consultation.management = parsed_data['management']
+            consultation.save()
+
         except Exception as e:
-            yield f"Error: {str(e)}"
-            return None
-    
+            # Propagate error string
+            raise Exception(f"HF API Error: {str(e)}")
+
     def _parse_response(self, text):
-        """Parse the LLM response to extract summary, diagnosis, management"""
-        try:
-            # Try to find JSON in the response
-            start = text.find('{')
-            end = text.rfind('}') + 1
-            
-            if start != -1 and end > start:
-                json_str = text[start:end]
-                data = json.loads(json_str)
-                return data
-            else:
-                # Fallback: parse by sections if JSON parsing fails
-                return self._fallback_parse(text)
+        """
+        Parse the raw model output text using Regex.
+        Matches: 'Summary: ... Diagnosis: ... Management: ...'
+        """
+        text = text.strip()
         
-        except json.JSONDecodeError:
-            return self._fallback_parse(text)
-    
-    def _fallback_parse(self, text):
-        """Fallback parser if JSON format is not followed"""
-        # Simple parsing based on keywords
         summary = ""
         diagnosis = ""
         management = ""
-        
-        if "SUMMARY" in text or "Summary" in text:
-            parts = text.split("DIAGNOSIS" if "DIAGNOSIS" in text else "Diagnosis")
-            summary_part = parts[0]
-            summary = summary_part.split("SUMMARY")[-1].split("Summary")[-1].strip()
+
+        # Case-insensitive Regex search
+        diag_match = re.search(r'diagnosis[:\s]+', text, re.IGNORECASE)
+        mgmt_match = re.search(r'management[:\s]+', text, re.IGNORECASE)
+
+        if diag_match and mgmt_match:
+            # 1. Summary (Start -> Diagnosis)
+            summary_end = diag_match.start()
+            summary = text[:summary_end].replace("Summary:", "").strip()
             
-            if len(parts) > 1:
-                diag_parts = parts[1].split("MANAGEMENT" if "MANAGEMENT" in text else "Management")
-                diagnosis = diag_parts[0].strip()
-                
-                if len(diag_parts) > 1:
-                    management = diag_parts[1].strip()
-        
+            # 2. Diagnosis (Diagnosis -> Management)
+            diag_start = diag_match.end()
+            diag_end = mgmt_match.start()
+            diagnosis = text[diag_start:diag_end].strip()
+            
+            # 3. Management (Management -> End)
+            mgmt_start = mgmt_match.end()
+            management = text[mgmt_start:].strip()
+            
+        elif diag_match:
+            # Fallback: Diagnosis found, but no Management
+            summary_end = diag_match.start()
+            summary = text[:summary_end].replace("Summary:", "").strip()
+            diagnosis = text[diag_match.end():].strip()
+            
+        else:
+            # Fallback: No keywords found, treat whole text as summary
+            summary = text
+
         return {
-            "summary": summary or text[:len(text)//3],
-            "diagnosis": diagnosis or text[len(text)//3:2*len(text)//3],
-            "management": management or text[2*len(text)//3:]
+            "summary": summary,
+            "diagnosis": diagnosis,
+            "management": management
         }

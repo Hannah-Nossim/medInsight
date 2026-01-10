@@ -1,6 +1,6 @@
 from io import BytesIO
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -14,8 +14,8 @@ def generate_pdf_report(consultation):
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, 
-                           topMargin=0.5*inch, bottomMargin=0.5*inch,
-                           leftMargin=0.75*inch, rightMargin=0.75*inch)
+                            topMargin=0.5*inch, bottomMargin=0.5*inch,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch)
     
     # Container for PDF elements
     elements = []
@@ -48,18 +48,16 @@ def generate_pdf_report(consultation):
     elements.append(Paragraph("MedInsight Consultation Report", title_style))
     elements.append(Spacer(1, 0.2*inch))
     
-    # Patient Information Table
-    patient_data = [
-        ['Patient Name:', consultation.patient_name],
-        ['Age:', f'{consultation.patient_age} years'],
-        ['Gender:', consultation.patient_gender],
+    # Consultation Metadata Table (Replaces Patient Info)
+    meta_data = [
+        ['Consultation ID:', f"#{consultation.pk}"],
         ['Date:', consultation.created_at.strftime('%B %d, %Y - %I:%M %p')],
         ['Language:', consultation.get_language_display()],
         ['Status:', 'Reviewed' if consultation.is_reviewed else 'Pending Review']
     ]
     
-    patient_table = Table(patient_data, colWidths=[2*inch, 4*inch])
-    patient_table.setStyle(TableStyle([
+    meta_table = Table(meta_data, colWidths=[2*inch, 4*inch])
+    meta_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
         ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
         ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
@@ -72,34 +70,17 @@ def generate_pdf_report(consultation):
         ('GRID', (0, 0), (-1, -1), 1, colors.grey),
     ]))
     
-    elements.append(patient_table)
+    elements.append(meta_table)
     elements.append(Spacer(1, 0.3*inch))
     
-    # Chief Complaint
-    elements.append(Paragraph("Chief Complaint", heading_style))
-    elements.append(Paragraph(consultation.chief_complaint, normal_style))
+    # Clinical Case Narrative (The single input field)
+    elements.append(Paragraph("Clinical Case Narrative", heading_style))
+    # Replace newlines with <br/> for PDF rendering
+    case_text = consultation.clinical_case.replace('\n', '<br/>')
+    elements.append(Paragraph(case_text, normal_style))
     elements.append(Spacer(1, 0.2*inch))
     
-    # Symptoms
-    elements.append(Paragraph("Symptoms Description", heading_style))
-    elements.append(Paragraph(consultation.symptoms_description, normal_style))
-    elements.append(Spacer(1, 0.1*inch))
-    elements.append(Paragraph(f"<b>Duration:</b> {consultation.duration}", normal_style))
-    elements.append(Spacer(1, 0.2*inch))
-    
-    # Vital Signs (if available)
-    if consultation.vital_signs:
-        elements.append(Paragraph("Vital Signs", heading_style))
-        elements.append(Paragraph(consultation.vital_signs, normal_style))
-        elements.append(Spacer(1, 0.2*inch))
-    
-    # Medical History (if available)
-    if consultation.medical_history:
-        elements.append(Paragraph("Medical History", heading_style))
-        elements.append(Paragraph(consultation.medical_history, normal_style))
-        elements.append(Spacer(1, 0.2*inch))
-    
-    # Page break before clinical assessment
+    # Page break before AI analysis to keep it clean
     elements.append(PageBreak())
     
     # Clinical Summary

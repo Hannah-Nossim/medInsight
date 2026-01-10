@@ -1,58 +1,26 @@
 from django import forms
 from .models import Consultation, SystemSettings
 
-
 class ConsultationForm(forms.ModelForm):
     class Meta:
         model = Consultation
+        # Updated fields to match the new single-input HTML structure
         fields = [
-            'patient_name', 'patient_age', 'patient_gender',
-            'chief_complaint', 'symptoms_description', 'duration',
-            'vital_signs', 'medical_history', 'language'
+            'clinical_case', 
+            'language'
         ]
         widgets = {
-            'patient_name': forms.TextInput(attrs={
+            'clinical_case': forms.Textarea(attrs={
                 'class': 'form-control',
-                'placeholder': 'Enter patient name'
-            }),
-            'patient_age': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Age',
-                'min': '0',
-                'max': '150'
-            }),
-            'patient_gender': forms.Select(attrs={
-                'class': 'form-control'
-            }),
-            'chief_complaint': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Main complaint...'
-            }),
-            'symptoms_description': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 5,
-                'placeholder': 'Describe all symptoms in detail...'
-            }),
-            'duration': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'e.g., 3 days, 2 weeks'
-            }),
-            'vital_signs': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 2,
-                'placeholder': 'BP, Temp, HR, RR (optional)'
-            }),
-            'medical_history': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Relevant medical history (optional)'
+                'rows': 10,
+                'placeholder': 'Paste the full clinical case narrative here (patient history, symptoms, observations, etc.)...'
             }),
             'language': forms.Select(attrs={
                 'class': 'form-control'
             }),
         }
 
+# --- The forms below remain unchanged ---
 
 class ConsultationEditForm(forms.ModelForm):
     class Meta:
@@ -72,7 +40,6 @@ class ConsultationEditForm(forms.ModelForm):
                 'rows': 6
             }),
         }
-
 
 class SystemSettingsForm(forms.ModelForm):
     """Simplified form for local model settings"""
