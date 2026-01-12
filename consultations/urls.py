@@ -27,6 +27,4 @@ urlpatterns = [
     
     # Settings & Model
     path('settings/', views.settings_view, name='settings'),
-    path('model/test/', views.test_model, name='test_model'),
-    path('model/info/', views.model_info, name='model_info'),
 ]
