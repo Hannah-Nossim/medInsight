@@ -119,32 +119,37 @@ def consultation_result(request, pk):
 
 # ==================== AI STREAMING (FIXED) ====================
 
+# In consultations/views.py
+
 def stream_ai_response(request, pk):
     """
-    Stream the AI response with heartbeat to prevent timeouts.
+    Stream the AI response with a LARGE heartbeat to force-flush network buffers.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
-        # 1. SEND HEARTBEAT
-        yield ': keep-alive start\n\n'
+        # 1. FORCE FLUSH: Send 2KB of empty comments to push through any proxy buffer
+        # This forces the browser to acknowledge the connection immediately.
+        yield ': ' + (' ' * 2048) + '\n\n'
         
         try:
             print(f"DEBUG: Starting AI generation for consultation {pk}", file=sys.stderr)
             
-            # 2. INITIALIZE SERVICE
+            # Initialize Service
             llm_service = LLMService()
-            yield ': keep-alive init\n\n'
+            
+            # Send another keep-alive just to be safe
+            yield ': keep-alive\n\n'
             yield 'data: {"type": "start"}\n\n'
             
             full_text_buffer = ""
             
-            # 3. STREAMING LOOP
+            # Stream the response
             for token_content in llm_service.stream_response(consultation):
                 yield f'data: {json.dumps({"type": "chunk", "content": token_content})}\n\n'
                 full_text_buffer += token_content
             
-            # 4. FINISH
+            # Save & Finish
             consultation.refresh_from_db()
             parsed_data = {
                 'summary': consultation.summary,
@@ -154,9 +159,7 @@ def stream_ai_response(request, pk):
             yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
 
         except Exception as e:
-            # Log error securely to backend logs
             print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
-            # Send error to frontend
             error_msg = json.dumps({"type": "error", "message": f"AI Error: {str(e)}"})
             yield f'data: {error_msg}\n\n'
 
