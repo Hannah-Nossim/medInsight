@@ -8,4 +8,4 @@ reportlab==4.0.9
 gunicorn
 dj-database-url
 psycopg2-binary
-decouple
+python-decouple
