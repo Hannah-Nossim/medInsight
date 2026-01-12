@@ -1,3 +1,4 @@
+import sys
 import os
 import json
 import re
@@ -11,9 +12,9 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.conf import settings as django_settings
 
-# Import the new service we created
+# Import the service and models
 from .services import LLMService 
-from .models import Consultation, SystemSettings, AnalyticsSnapshot
+from .models import Consultation, SystemSettings
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .utils import generate_pdf_report
 
@@ -116,50 +117,56 @@ def consultation_result(request, pk):
     })
 
 
+# ==================== AI STREAMING (FIXED) ====================
+
 def stream_ai_response(request, pk):
     """
-    Stream the AI response using the LLMService.
+    Stream the AI response with heartbeat to prevent timeouts.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
+        # 1. SEND HEARTBEAT
+        yield ': keep-alive start\n\n'
+        
         try:
-            # Initialize the service
+            print(f"DEBUG: Starting AI generation for consultation {pk}", file=sys.stderr)
+            
+            # 2. INITIALIZE SERVICE
             llm_service = LLMService()
+            yield ': keep-alive init\n\n'
             yield 'data: {"type": "start"}\n\n'
             
             full_text_buffer = ""
             
-            # Use the service's stream generator
-            # This handles prompting, API calls, and DB saving internally
+            # 3. STREAMING LOOP
             for token_content in llm_service.stream_response(consultation):
                 yield f'data: {json.dumps({"type": "chunk", "content": token_content})}\n\n'
                 full_text_buffer += token_content
             
-            # Re-fetch the saved consultation to get the parsed fields
-            # (The service saves them before finishing the stream)
+            # 4. FINISH
             consultation.refresh_from_db()
-            
             parsed_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
                 'management': consultation.management
             }
-            
             yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
 
         except Exception as e:
-            error_msg = json.dumps({"type": "error", "message": f"AI Service Error: {str(e)}"})
+            # Log error securely to backend logs
+            print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
+            # Send error to frontend
+            error_msg = json.dumps({"type": "error", "message": f"AI Error: {str(e)}"})
             yield f'data: {error_msg}\n\n'
 
-    stream_generator = event_stream()
-
-    # Return the stream
-    response = StreamingHttpResponse(stream_generator, content_type='text/event-stream')
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'
     response['X-Accel-Buffering'] = 'no' 
     return response
 
+
+# ==================== EDIT & HISTORY ====================
 
 def consultation_edit(request, pk):
     """Allow clinicians to edit the AI-generated results"""
@@ -189,8 +196,6 @@ def consultation_detail(request, pk):
         'consultation': consultation
     })
 
-
-# ==================== CONSULTATION HISTORY ====================
 
 def consultation_history(request):
     """Display all consultations with search and filters"""
@@ -250,7 +255,7 @@ def consultation_delete(request, pk):
     return redirect('consultation_detail', pk=pk)
 
 
-# ==================== ANALYTICS ====================
+# ==================== ANALYTICS & SETTINGS ====================
 
 def analytics(request):
     """Analytics and insights page"""
@@ -288,8 +293,6 @@ def analytics(request):
     return render(request, 'consultations/analytics.html', context)
 
 
-# ==================== SETTINGS ====================
-
 def settings_view(request):
     """System settings configuration"""
     settings_obj = SystemSettings.load()
@@ -303,7 +306,6 @@ def settings_view(request):
     else:
         form = SystemSettingsForm(instance=settings_obj)
     
-    # We simplified this since we don't have a local model
     model_info = {'loaded': True, 'type': 'Hugging Face API'}
     
     context = {
@@ -313,8 +315,6 @@ def settings_view(request):
     }
     return render(request, 'consultations/settings.html', context)
 
-
-# ==================== UTILS ====================
 
 def export_consultation_pdf(request, pk):
     """Export consultation as PDF"""
