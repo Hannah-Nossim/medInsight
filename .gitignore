@@ -37,3 +37,5 @@ build/
 
 # Node modules (if using JS frontend)
 node_mo_
+# Secrets 
+.env
