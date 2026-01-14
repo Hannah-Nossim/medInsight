@@ -121,12 +121,82 @@ def consultation_result(request, pk):
 
 # In consultations/views.py
 
-def stream_ai_response(request, pk):
+
+    def stream_ai_response(request, pk):
     """
-    Stream the AI response with a LARGE heartbeat to force-flush network buffers.
+    Stream AI response with aggressive buffer flushing for Railway deployment
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
+    def event_stream():
+        import time
+        
+        # 1. FORCE IMMEDIATE FLUSH - Send 8KB padding (Railway needs this)
+        padding = ': ' + (' ' * 8192) + '\n\n'
+        yield padding
+        
+        # 2. Send connection established signal
+        yield 'data: {"type": "connected"}\n\n'
+        
+        try:
+            print(f"[AI] Starting generation for consultation #{pk}", file=sys.stderr)
+            
+            # Initialize service
+            llm_service = LLMService()
+            
+            # Send start signal
+            yield 'data: {"type": "start"}\n\n'
+            
+            # Get the full response from HF API
+            full_response = ""
+            chunk_count = 0
+            
+            for token in llm_service.stream_response(consultation):
+                # Send each token
+                chunk_data = json.dumps({"type": "chunk", "content": token})
+                yield f'data: {chunk_data}\n\n'
+                
+                full_response += token
+                chunk_count += 1
+                
+                # Every 10 chunks, send a heartbeat to keep connection alive
+                if chunk_count % 10 == 0:
+                    yield ': heartbeat\n\n'
+            
+            print(f"[AI] Generated {len(full_response)} characters", file=sys.stderr)
+            
+            # Refresh consultation from DB (service.py saved it)
+            consultation.refresh_from_db()
+            
+            # Send completion with parsed data
+            parsed_data = {
+                'summary': consultation.summary or "No summary generated",
+                'diagnosis': consultation.diagnosis or "No diagnosis generated",
+                'management': consultation.management or "No management plan generated"
+            }
+            
+            completion_data = json.dumps({"type": "complete", "data": parsed_data})
+            yield f'data: {completion_data}\n\n'
+            
+            print(f"[AI] Successfully completed consultation #{pk}", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[AI ERROR] {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            
+            error_data = json.dumps({
+                "type": "error",
+                "message": f"AI Error: {str(e)}"
+            })
+            yield f'data: {error_data}\n\n'
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
+    response['Connection'] = 'keep-alive'
+    
+    return response
     def event_stream():
         # 1. FORCE FLUSH: Send 2KB of empty comments to push through any proxy buffer
         # This forces the browser to acknowledge the connection immediately.
