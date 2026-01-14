@@ -10,13 +10,12 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.conf import settings as django_settings
 
-# Import the service and models
 from .services import LLMService 
 from .models import Consultation, SystemSettings
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .utils import generate_pdf_report
+
 
 # ==================== PUBLIC PAGES ====================
 
@@ -71,9 +70,8 @@ def dashboard(request):
         count=Count('id')
     ).order_by('-count')
     
-    # Check configuration
-    settings = SystemSettings.load()
-    hf_token_configured = bool(os.environ.get("HF_TOKEN") or getattr(settings, 'hf_api_token', None))
+    # Check if HF token is configured
+    hf_token_configured = bool(os.environ.get("HF_TOKEN"))
     
     context = {
         'today_count': today_consultations,
@@ -84,7 +82,7 @@ def dashboard(request):
         'recent_consultations': recent_consultations,
         'language_stats': language_stats,
         'system_configured': hf_token_configured,
-        'settings': settings,
+        'settings': SystemSettings.load(),
     }
     return render(request, 'consultations/dashboard.html', context)
 
@@ -117,25 +115,20 @@ def consultation_result(request, pk):
     })
 
 
-# ==================== AI STREAMING (FIXED) ====================
-
-# In consultations/views.py
-
-
-    def stream_ai_response(request, pk):
+def stream_ai_response(request, pk):
     """
-    Stream AI response with aggressive buffer flushing for Railway deployment
+    Stream AI response with aggressive buffer flushing for Railway
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
         import time
         
-        # 1. FORCE IMMEDIATE FLUSH - Send 8KB padding (Railway needs this)
+        # 1. FORCE IMMEDIATE FLUSH - 8KB padding for Railway
         padding = ': ' + (' ' * 8192) + '\n\n'
         yield padding
         
-        # 2. Send connection established signal
+        # 2. Connection established
         yield 'data: {"type": "connected"}\n\n'
         
         try:
@@ -147,28 +140,27 @@ def consultation_result(request, pk):
             # Send start signal
             yield 'data: {"type": "start"}\n\n'
             
-            # Get the full response from HF API
+            # Stream response
             full_response = ""
             chunk_count = 0
             
             for token in llm_service.stream_response(consultation):
-                # Send each token
                 chunk_data = json.dumps({"type": "chunk", "content": token})
                 yield f'data: {chunk_data}\n\n'
                 
                 full_response += token
                 chunk_count += 1
                 
-                # Every 10 chunks, send a heartbeat to keep connection alive
+                # Heartbeat every 10 chunks
                 if chunk_count % 10 == 0:
                     yield ': heartbeat\n\n'
             
             print(f"[AI] Generated {len(full_response)} characters", file=sys.stderr)
             
-            # Refresh consultation from DB (service.py saved it)
+            # Refresh from DB
             consultation.refresh_from_db()
             
-            # Send completion with parsed data
+            # Send completion
             parsed_data = {
                 'summary': consultation.summary or "No summary generated",
                 'diagnosis': consultation.diagnosis or "No diagnosis generated",
@@ -178,7 +170,7 @@ def consultation_result(request, pk):
             completion_data = json.dumps({"type": "complete", "data": parsed_data})
             yield f'data: {completion_data}\n\n'
             
-            print(f"[AI] Successfully completed consultation #{pk}", file=sys.stderr)
+            print(f"[AI] Completed consultation #{pk}", file=sys.stderr)
 
         except Exception as e:
             print(f"[AI ERROR] {str(e)}", file=sys.stderr)
@@ -193,56 +185,14 @@ def consultation_result(request, pk):
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response['X-Accel-Buffering'] = 'no'  # Disable nginx buffering
+    response['X-Accel-Buffering'] = 'no'
     response['Connection'] = 'keep-alive'
     
     return response
-    def event_stream():
-        # 1. FORCE FLUSH: Send 2KB of empty comments to push through any proxy buffer
-        # This forces the browser to acknowledge the connection immediately.
-        yield ': ' + (' ' * 2048) + '\n\n'
-        
-        try:
-            print(f"DEBUG: Starting AI generation for consultation {pk}", file=sys.stderr)
-            
-            # Initialize Service
-            llm_service = LLMService()
-            
-            # Send another keep-alive just to be safe
-            yield ': keep-alive\n\n'
-            yield 'data: {"type": "start"}\n\n'
-            
-            full_text_buffer = ""
-            
-            # Stream the response
-            for token_content in llm_service.stream_response(consultation):
-                yield f'data: {json.dumps({"type": "chunk", "content": token_content})}\n\n'
-                full_text_buffer += token_content
-            
-            # Save & Finish
-            consultation.refresh_from_db()
-            parsed_data = {
-                'summary': consultation.summary,
-                'diagnosis': consultation.diagnosis,
-                'management': consultation.management
-            }
-            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
 
-        except Exception as e:
-            print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
-            error_msg = json.dumps({"type": "error", "message": f"AI Error: {str(e)}"})
-            yield f'data: {error_msg}\n\n'
-
-    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
-    response['Cache-Control'] = 'no-cache'
-    response['X-Accel-Buffering'] = 'no' 
-    return response
-
-
-# ==================== EDIT & HISTORY ====================
 
 def consultation_edit(request, pk):
-    """Allow clinicians to edit the AI-generated results"""
+    """Allow clinicians to edit AI-generated results"""
     consultation = get_object_or_404(Consultation, pk=pk)
     
     if request.method == 'POST':
@@ -263,12 +213,14 @@ def consultation_edit(request, pk):
 
 
 def consultation_detail(request, pk):
-    """View the final consultation details"""
+    """View final consultation details"""
     consultation = get_object_or_404(Consultation, pk=pk)
     return render(request, 'consultations/consultation_detail.html', {
         'consultation': consultation
     })
 
+
+# ==================== HISTORY ====================
 
 def consultation_history(request):
     """Display all consultations with search and filters"""
@@ -328,7 +280,7 @@ def consultation_delete(request, pk):
     return redirect('consultation_detail', pk=pk)
 
 
-# ==================== ANALYTICS & SETTINGS ====================
+# ==================== ANALYTICS ====================
 
 def analytics(request):
     """Analytics and insights page"""
@@ -339,6 +291,7 @@ def analytics(request):
         count=Count('id')
     ).order_by('-count'))
     
+    # Last 30 days
     thirty_days_ago = timezone.now() - timedelta(days=30)
     daily_stats = []
     for i in range(30):
@@ -346,6 +299,7 @@ def analytics(request):
         count = Consultation.objects.filter(created_at__date=date).count()
         daily_stats.append({'date': date.strftime('%Y-%m-%d'), 'count': count})
     
+    # Last 6 months
     monthly_stats = []
     for i in range(6):
         date = timezone.now() - timedelta(days=30*i)
@@ -366,6 +320,8 @@ def analytics(request):
     return render(request, 'consultations/analytics.html', context)
 
 
+# ==================== SETTINGS ====================
+
 def settings_view(request):
     """System settings configuration"""
     settings_obj = SystemSettings.load()
@@ -379,7 +335,11 @@ def settings_view(request):
     else:
         form = SystemSettingsForm(instance=settings_obj)
     
-    model_info = {'loaded': True, 'type': 'Hugging Face API'}
+    model_info = {
+        'loaded': True, 
+        'type': 'Hugging Face API',
+        'model': 'Nossim/my-t5-finetuned'
+    }
     
     context = {
         'form': form,
@@ -389,9 +349,12 @@ def settings_view(request):
     return render(request, 'consultations/settings.html', context)
 
 
+# ==================== EXPORT ====================
+
 def export_consultation_pdf(request, pk):
     """Export consultation as PDF"""
     consultation = get_object_or_404(Consultation, pk=pk)
+    
     try:
         pdf = generate_pdf_report(consultation)
         response = HttpResponse(pdf, content_type='application/pdf')
