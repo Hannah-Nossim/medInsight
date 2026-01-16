@@ -138,7 +138,7 @@ def stream_ai_response(request, pk):
 
             # --- CONFIGURATION ---
             # Your Docker Space URL
-            SPACE_ENDPOINT = "https://nossim-medinsight-space.hf.space/predict"
+            SPACE_ENDPOINT = "https://nossim-my-flan-t5-base.hf.space/predict"
             # ---------------------
 
             # Notify frontend that process has started
