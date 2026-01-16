@@ -122,7 +122,7 @@ def consultation_result(request, pk):
 def stream_ai_response(request, pk):
     """
     Connects to the Docker Space to get the AI response.
-    Includes Prefix 'summarize: ' to force T5 structure.
+    Uses the correct training prefix 'CLINICAL CASE:' to trigger structured output.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
@@ -134,15 +134,16 @@ def stream_ai_response(request, pk):
             print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
 
             # --- CONFIGURATION ---
+            # Your specific Docker Space URL
             SPACE_ENDPOINT = "https://nossim-my-flan-t5-base.hf.space/predict"
             # ---------------------
 
             yield 'data: {"type": "start"}\n\n'
             
             # 2. Call the Docker Space
-            # ATTENTION: We add "summarize: " prefix. 
-            # If your model used a different training prefix (like "diagnose:"), change it here.
-            formatted_input = f"summarize: {consultation.clinical_case}"
+            # === CRITICAL FIX ===
+            # We change "summarize:" to "CLINICAL CASE:" to match your training data.
+            formatted_input = f"CLINICAL CASE: {consultation.clinical_case}"
             
             payload = {
                 "inputs": formatted_input,
@@ -156,7 +157,7 @@ def stream_ai_response(request, pk):
             data = response.json()
             print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr)
 
-            # Extract text looking for 'output' first (matching your logs)
+            # Extract text (Robust extraction supporting 'output' key)
             generated_text = ""
             if isinstance(data, dict):
                 generated_text = (
