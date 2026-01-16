@@ -137,7 +137,7 @@ def stream_ai_response(request, pk):
             print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
 
             # --- CONFIGURATION ---
-            SPACE_ENDPOINT = "https://nossim-medinsight-space.hf.space/predict"
+            SPACE_ENDPOINT = "https://nossim-my-flan-t5-base.hf.space/predict"
             # ---------------------
 
             yield 'data: {"type": "start"}\n\n'
