@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import re
+import requests  # Added for Docker Space connection
 from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -12,11 +13,13 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.conf import settings as django_settings
 
-# Import the service and models
-from .services import LLMService 
+# Import models and forms
 from .models import Consultation, SystemSettings
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .utils import generate_pdf_report
+
+# Note: LLMService import removed/commented out as we are now using the Docker Space directly
+# from .services import LLMService 
 
 # ==================== PUBLIC PAGES ====================
 
@@ -117,40 +120,62 @@ def consultation_result(request, pk):
     })
 
 
-# ==================== AI STREAMING (FIXED) ====================
-
-# In consultations/views.py
+# ==================== AI STREAMING (UPDATED) ====================
 
 def stream_ai_response(request, pk):
     """
-    Stream the AI response with a LARGE heartbeat to force-flush network buffers.
+    Connects to the Docker Space to get the AI response.
+    Maintains SSE format so the frontend loading animation works.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
-        # 1. FORCE FLUSH: Send 2KB of empty comments to push through any proxy buffer
-        # This forces the browser to acknowledge the connection immediately.
+        # 1. FORCE FLUSH: Send empty comments to keep connection alive
         yield ': ' + (' ' * 2048) + '\n\n'
         
         try:
-            print(f"DEBUG: Starting AI generation for consultation {pk}", file=sys.stderr)
-            
-            # Initialize Service
-            llm_service = LLMService()
-            
-            # Send another keep-alive just to be safe
-            yield ': keep-alive\n\n'
+            print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
+
+            # --- CONFIGURATION ---
+            # Your Docker Space URL
+            SPACE_ENDPOINT = "https://nossim-medinsight-space.hf.space/predict"
+            # ---------------------
+
+            # Notify frontend that process has started
             yield 'data: {"type": "start"}\n\n'
             
-            full_text_buffer = ""
+            # 2. Call the Docker Space
+            # We send the clinical case text to your Space
+            # Most Docker templates expect "text" or "inputs"
+            payload = {"text": consultation.clinical_case}
             
-            # Stream the response
-            for token_content in llm_service.stream_response(consultation):
-                yield f'data: {json.dumps({"type": "chunk", "content": token_content})}\n\n'
-                full_text_buffer += token_content
+            # This request will wait until the Space responds (timeout set to 120s for safety)
+            response = requests.post(SPACE_ENDPOINT, json=payload, timeout=120)
+            response.raise_for_status()
             
-            # Save & Finish
-            consultation.refresh_from_db()
+            # 3. Process the Result
+            data = response.json()
+            
+            # Extract text based on likely response formats
+            generated_text = ""
+            if isinstance(data, dict):
+                # Try common keys
+                generated_text = data.get('generated_text') or data.get('summary') or data.get('prediction') or str(data)
+            elif isinstance(data, list) and len(data) > 0:
+                # If list of dicts (common in transformers)
+                if isinstance(data[0], dict):
+                    generated_text = data[0].get('generated_text', str(data[0]))
+                else:
+                    generated_text = str(data[0])
+            else:
+                generated_text = str(data)
+
+            # 4. Save to Database
+            consultation.summary = generated_text
+            consultation.is_reviewed = False
+            consultation.save()
+            
+            # 5. Send 'Complete' signal to frontend with the data
             parsed_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
