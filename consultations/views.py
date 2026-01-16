@@ -125,44 +125,43 @@ def consultation_result(request, pk):
 def stream_ai_response(request, pk):
     """
     Connects to the Docker Space to get the AI response.
-    Maintains SSE format so the frontend loading animation works.
+    Simulates a 'chunk' event so the frontend displays the text correctly.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
-        # 1. FORCE FLUSH: Send empty comments to keep connection alive
+        # 1. FORCE FLUSH: Keep connection alive
         yield ': ' + (' ' * 2048) + '\n\n'
         
         try:
             print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
 
             # --- CONFIGURATION ---
-            # Your Docker Space URL
-            SPACE_ENDPOINT = "https://nossim-my-flan-t5-base.hf.space/predict"
+            SPACE_ENDPOINT = "https://nossim-medinsight-space.hf.space/predict"
             # ---------------------
 
-            # Notify frontend that process has started
             yield 'data: {"type": "start"}\n\n'
             
             # 2. Call the Docker Space
-            # We send the clinical case text to your Space
-            # Most Docker templates expect "text" or "inputs"
-            payload = {"text": consultation.clinical_case}
+            # T5 models usually expect "inputs". We send "text" too just in case.
+            payload = {
+                "inputs": consultation.clinical_case,
+                "text": consultation.clinical_case 
+            }
             
-            # This request will wait until the Space responds (timeout set to 120s for safety)
+            # Timeout set to 120s because the Space might be sleeping
             response = requests.post(SPACE_ENDPOINT, json=payload, timeout=120)
             response.raise_for_status()
             
             # 3. Process the Result
             data = response.json()
-            
-            # Extract text based on likely response formats
+            print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr) # <--- Look for this in logs!
+
+            # Extract text (Robust extraction)
             generated_text = ""
             if isinstance(data, dict):
-                # Try common keys
                 generated_text = data.get('generated_text') or data.get('summary') or data.get('prediction') or str(data)
             elif isinstance(data, list) and len(data) > 0:
-                # If list of dicts (common in transformers)
                 if isinstance(data[0], dict):
                     generated_text = data[0].get('generated_text', str(data[0]))
                 else:
@@ -175,7 +174,13 @@ def stream_ai_response(request, pk):
             consultation.is_reviewed = False
             consultation.save()
             
-            # 5. Send 'Complete' signal to frontend with the data
+            # === CRITICAL FIX: Send data as a CHUNK first ===
+            # This makes the text appear on your screen!
+            chunk_data = json.dumps({"type": "chunk", "content": generated_text})
+            yield f'data: {chunk_data}\n\n'
+            # ================================================
+
+            # 5. Send 'Complete' signal
             parsed_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
