@@ -2,7 +2,7 @@ import sys
 import os
 import json
 import re
-import requests  # Added for Docker Space connection
+import requests
 from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -17,9 +17,6 @@ from django.conf import settings as django_settings
 from .models import Consultation, SystemSettings
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .utils import generate_pdf_report
-
-# Note: LLMService import removed/commented out as we are now using the Docker Space directly
-# from .services import LLMService 
 
 # ==================== PUBLIC PAGES ====================
 
@@ -120,17 +117,17 @@ def consultation_result(request, pk):
     })
 
 
-# ==================== AI STREAMING (UPDATED) ====================
+# ==================== AI STREAMING (FIXED) ====================
 
 def stream_ai_response(request, pk):
     """
     Connects to the Docker Space to get the AI response.
-    Simulates a 'chunk' event so the frontend displays the text correctly.
+    Includes Prefix 'summarize: ' to force T5 structure.
     """
     consultation = get_object_or_404(Consultation, pk=pk)
     
     def event_stream():
-        # 1. FORCE FLUSH: Keep connection alive
+        # 1. FORCE FLUSH
         yield ': ' + (' ' * 2048) + '\n\n'
         
         try:
@@ -143,24 +140,31 @@ def stream_ai_response(request, pk):
             yield 'data: {"type": "start"}\n\n'
             
             # 2. Call the Docker Space
-            # T5 models usually expect "inputs". We send "text" too just in case.
+            # ATTENTION: We add "summarize: " prefix. 
+            # If your model used a different training prefix (like "diagnose:"), change it here.
+            formatted_input = f"summarize: {consultation.clinical_case}"
+            
             payload = {
-                "inputs": consultation.clinical_case,
-                "text": consultation.clinical_case 
+                "inputs": formatted_input,
+                "text": formatted_input
             }
             
-            # Timeout set to 120s because the Space might be sleeping
             response = requests.post(SPACE_ENDPOINT, json=payload, timeout=120)
             response.raise_for_status()
             
             # 3. Process the Result
             data = response.json()
-            print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr) # <--- Look for this in logs!
+            print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr)
 
-            # Extract text (Robust extraction)
+            # Extract text looking for 'output' first (matching your logs)
             generated_text = ""
             if isinstance(data, dict):
-                generated_text = data.get('generated_text') or data.get('summary') or data.get('prediction') or str(data)
+                generated_text = (
+                    data.get('output') or 
+                    data.get('generated_text') or 
+                    data.get('summary') or 
+                    str(data)
+                )
             elif isinstance(data, list) and len(data) > 0:
                 if isinstance(data[0], dict):
                     generated_text = data[0].get('generated_text', str(data[0]))
@@ -174,13 +178,11 @@ def stream_ai_response(request, pk):
             consultation.is_reviewed = False
             consultation.save()
             
-            # === CRITICAL FIX: Send data as a CHUNK first ===
-            # This makes the text appear on your screen!
+            # 5. Send CHUNK (Critical for display)
             chunk_data = json.dumps({"type": "chunk", "content": generated_text})
             yield f'data: {chunk_data}\n\n'
-            # ================================================
 
-            # 5. Send 'Complete' signal
+            # 6. Send Complete
             parsed_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
