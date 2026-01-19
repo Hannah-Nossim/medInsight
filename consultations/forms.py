@@ -11,32 +11,55 @@ class ConsultationForm(forms.ModelForm):
         ]
         widgets = {
             'clinical_case': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent',
                 'rows': 10,
                 'placeholder': 'Paste the full clinical case narrative here (patient history, symptoms, observations, etc.)...'
             }),
             'language': forms.Select(attrs={
-                'class': 'form-control'
+                'class': 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent'
             }),
         }
 
-# --- The forms below remain unchanged ---
+# --- Updated Edit Form to include Patient Details ---
 
 class ConsultationEditForm(forms.ModelForm):
     class Meta:
         model = Consultation
-        fields = ['summary', 'diagnosis', 'management']
+        fields = [
+            'patient_id', 
+            'patient_age', 
+            'patient_gender', 
+            'duration', 
+            'summary', 
+            'diagnosis', 
+            'management'
+        ]
         widgets = {
+            # New Patient Fields
+            'patient_id': forms.TextInput(attrs={
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500'
+            }),
+            'patient_age': forms.NumberInput(attrs={
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500'
+            }),
+            'patient_gender': forms.Select(attrs={
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500'
+            }),
+            'duration': forms.TextInput(attrs={
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500'
+            }),
+            
+            # Existing Clinical Fields
             'summary': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500',
                 'rows': 5
             }),
             'diagnosis': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500',
                 'rows': 5
             }),
             'management': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500',
                 'rows': 6
             }),
         }

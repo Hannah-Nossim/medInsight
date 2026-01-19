@@ -39,6 +39,52 @@
     
     <form method="post" class="space-y-6">
         {% csrf_token %}
+
+        <div class="bg-white rounded-xl card-shadow overflow-hidden">
+            <div class="bg-gray-600 px-6 py-3">
+                <h3 class="text-white font-semibold flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    <span>Patient Details</span>
+                </h3>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="id_patient_id" class="block text-sm font-medium text-gray-700 mb-2">Patient ID</label>
+                        {{ form.patient_id }} 
+                        {% if form.patient_id.errors %}
+                            <p class="mt-2 text-sm text-red-600">{{ form.patient_id.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="id_duration" class="block text-sm font-medium text-gray-700 mb-2">Duration of Symptoms</label>
+                        {{ form.duration }}
+                        {% if form.duration.errors %}
+                            <p class="mt-2 text-sm text-red-600">{{ form.duration.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="id_patient_age" class="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                        {{ form.patient_age }}
+                        {% if form.patient_age.errors %}
+                            <p class="mt-2 text-sm text-red-600">{{ form.patient_age.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="id_patient_gender" class="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                        {{ form.patient_gender }}
+                        {% if form.patient_gender.errors %}
+                            <p class="mt-2 text-sm text-red-600">{{ form.patient_gender.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <div class="bg-white rounded-xl card-shadow overflow-hidden">
             <div class="bg-blue-500 px-6 py-3">
