@@ -59,7 +59,7 @@
             <a href="{% url 'consultation_form' %}" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200">
                 New Consultation
             </a>
-            <a href="{% url 'consultation_edit' %}" class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200">
+            <a href="{% url 'consultation_edit' consultation.pk %}" class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200">
                 Review & Edit
             </a>
         </div>
