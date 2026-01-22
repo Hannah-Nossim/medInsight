@@ -5,7 +5,6 @@
 {% block extra_css %}
 <style>
     @media print {
-
         header,
         footer,
         .no-print {
@@ -162,7 +161,6 @@
         </a>
     </div>
 
-    <!-- Review Section -->
     <div class="bg-white rounded-xl card-shadow p-6 mb-8 no-print border-l-4 border-yellow-400">
         <h3 class="text-lg font-bold text-gray-800 mb-2">Rate AI Quality</h3>
         <p class="text-sm text-gray-600 mb-4">Help improve the model by rating this consultation.</p>
@@ -174,9 +172,11 @@
                 <div class="flex space-x-1">
                     {% for i in "12345" %}
                     <label class="cursor-pointer">
-                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer" {% if
-                            consultation.review.rating == forloop.counter %}checked{% elif not consultation.review and
-                            forloop.counter == 5 %}checked{% endif %}>
+                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer" 
+                            {% if consultation.review.rating == forloop.counter %}checked
+                            {% elif not consultation.review and forloop.counter == 5 %}checked
+                            {% endif %}>
+                            
                         <svg class="w-8 h-8 text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-300 transition"
                             fill="currentColor" viewBox="0 0 20 20">
                             <path
