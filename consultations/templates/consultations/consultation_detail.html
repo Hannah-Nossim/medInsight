@@ -174,8 +174,8 @@
                     {% for i in "12345" %}
                     <label class="cursor-pointer">
                         <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer"
-                         {% if consultation.review.rating==forloop.counter %}checked 
-                         {% elif not consultation.review and forloop.counter==5 %}checked
+                         {% if consultation.review.rating == forloop.counter %}checked 
+                         {% elif not consultation.review and forloop.counter == 5 %}checked
                          {% endif %}>
 
                         <svg class="w-8 h-8 text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-300 transition"
