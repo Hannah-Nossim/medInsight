@@ -27,4 +27,8 @@ urlpatterns = [
     
     # Settings & Model
     path('settings/', views.settings_view, name='settings'),
+    
+    # Continuous Learning / Reviews
+    path('consultation/<int:pk>/review/', views.submit_review, name='submit_review'),
+    path('analytics/export-data/', views.export_training_data, name='export_training_data'),
 ]

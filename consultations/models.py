@@ -27,6 +27,11 @@ class Consultation(models.Model):
     diagnosis = models.TextField(blank=True, null=True)
     management = models.TextField(blank=True, null=True)
     
+    # --- Original AI Output (For training comparison) ---
+    original_summary = models.TextField(blank=True, null=True)
+    original_diagnosis = models.TextField(blank=True, null=True)
+    original_management = models.TextField(blank=True, null=True)
+    
     # --- Metadata ---
     language = models.CharField(
         max_length=10, 
@@ -54,6 +59,17 @@ class Consultation(models.Model):
             return 'Completed'
         else:
             return 'Pending'
+
+
+class Review(models.Model):
+    """Explicit user feedback for continuous learning"""
+    consultation = models.OneToOneField(Consultation, on_delete=models.CASCADE, related_name='review')
+    rating = models.IntegerField(choices=[(i, f"{i} Stars") for i in range(1, 6)], default=5)
+    comment = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Review for #{self.consultation.pk}: {self.rating} Stars"
 
 
 class SystemSettings(models.Model):

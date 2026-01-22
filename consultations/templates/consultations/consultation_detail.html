@@ -5,12 +5,17 @@
 {% block extra_css %}
 <style>
     @media print {
-        header, footer, .no-print {
+
+        header,
+        footer,
+        .no-print {
             display: none !important;
         }
+
         body {
             background: white;
         }
+
         .print-section {
             page-break-inside: avoid;
         }
@@ -26,38 +31,45 @@
             <p class="text-gray-600 mt-1">Complete clinical assessment and management plan</p>
         </div>
         <div class="flex items-center space-x-3">
-            <button onclick="window.print()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200 flex items-center space-x-2">
+            <button onclick="window.print()"
+                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200 flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                    </path>
                 </svg>
                 <span>Print</span>
             </button>
-            <a href="{% url 'consultation_edit' consultation.pk %}" class="px-4 py-2 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200 flex items-center space-x-2">
+            <a href="{% url 'consultation_edit' consultation.pk %}"
+                class="px-4 py-2 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200 flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                    </path>
                 </svg>
                 <span>Edit</span>
             </a>
         </div>
     </div>
-    
+
     {% if consultation.is_reviewed %}
     <div class="mb-6 no-print">
         <span class="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             Clinician Reviewed
         </span>
     </div>
     {% endif %}
-    
+
     <div class="bg-white rounded-xl card-shadow p-6 mb-6 print-section">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-xl font-bold text-gray-800">Patient Information</h3>
             <span class="text-sm text-gray-500">{{ consultation.created_at|date:"F d, Y - g:i A" }}</span>
         </div>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-4">
                 <div>
@@ -75,7 +87,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="space-y-4">
                 <div>
                     <p class="text-sm text-gray-600 mb-1">Duration of Symptoms</p>
@@ -83,7 +95,7 @@
                 </div>
             </div>
         </div>
-        
+
         {% if consultation.medical_history %}
         <div class="mt-4 pt-4 border-t">
             <p class="text-sm text-gray-600 mb-2">Medical History</p>
@@ -91,12 +103,14 @@
         </div>
         {% endif %}
     </div>
-    
+
     <div class="bg-white rounded-xl card-shadow overflow-hidden mb-6 print-section">
         <div class="bg-blue-500 px-6 py-3">
             <h3 class="text-white font-semibold flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    </path>
                 </svg>
                 <span>Clinical Summary</span>
             </h3>
@@ -105,12 +119,14 @@
             <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">{{ consultation.summary }}</p>
         </div>
     </div>
-    
+
     <div class="bg-white rounded-xl card-shadow overflow-hidden mb-6 print-section">
         <div class="bg-green-500 px-6 py-3">
             <h3 class="text-white font-semibold flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4">
+                    </path>
                 </svg>
                 <span>Diagnosis</span>
             </h3>
@@ -119,12 +135,14 @@
             <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">{{ consultation.diagnosis }}</p>
         </div>
     </div>
-    
+
     <div class="bg-white rounded-xl card-shadow overflow-hidden mb-6 print-section">
         <div class="bg-purple-500 px-6 py-3">
             <h3 class="text-white font-semibold flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4">
+                    </path>
                 </svg>
                 <span>Management Plan</span>
             </h3>
@@ -133,18 +151,60 @@
             <p class="text-gray-800 leading-relaxed whitespace-pre-wrap">{{ consultation.management }}</p>
         </div>
     </div>
-    
+
     <div class="flex items-center justify-between pt-4 no-print">
-        <a href="{% url 'consultation_form' %}" class="text-purple-600 hover:text-purple-800 font-medium flex items-center space-x-1">
+        <a href="{% url 'consultation_form' %}"
+            class="text-purple-600 hover:text-purple-800 font-medium flex items-center space-x-1">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
             </svg>
             <span>New Consultation</span>
         </a>
     </div>
-    
+
+    <!-- Review Section -->
+    <div class="bg-white rounded-xl card-shadow p-6 mb-8 no-print border-l-4 border-yellow-400">
+        <h3 class="text-lg font-bold text-gray-800 mb-2">Rate AI Quality</h3>
+        <p class="text-sm text-gray-600 mb-4">Help improve the model by rating this consultation.</p>
+
+        <form action="{% url 'submit_review' consultation.pk %}" method="post">
+            {% csrf_token %}
+            <div class="flex items-center space-x-2 mb-4">
+                <label class="font-medium text-gray-700">Rating:</label>
+                <div class="flex space-x-1">
+                    {% for i in "12345" %}
+                    <label class="cursor-pointer">
+                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer" {% if
+                            consultation.review.rating==forloop.counter %}checked{% elif not consultation.review and
+                            forloop.counter==5 %}checked{% endif %}>
+                        <svg class="w-8 h-8 text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-300 transition"
+                            fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <textarea name="comment" rows="2"
+                    class="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    placeholder="Any specific feedback on the diagnosis or management plan?">{{ consultation.review.comment }}</textarea>
+            </div>
+
+            <button type="submit"
+                class="px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 transition">
+                Submit Feedback
+            </button>
+        </form>
+    </div>
+
     <div class="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600">
-        <p><strong>Clinical Disclaimer:</strong> This consultation record was generated with NLP-powered assistance. All clinical decisions should be made by qualified healthcare professionals based on their professional judgment, patient assessment, and current clinical guidelines. This tool is designed to support, not replace, clinical expertise.</p>
+        <p><strong>Clinical Disclaimer:</strong> This consultation record was generated with NLP-powered assistance. All
+            clinical decisions should be made by qualified healthcare professionals based on their professional
+            judgment, patient assessment, and current clinical guidelines. This tool is designed to support, not
+            replace, clinical expertise.</p>
     </div>
 </div>
 {% endblock %}

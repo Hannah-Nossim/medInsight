@@ -14,7 +14,7 @@ from django.core.paginator import Paginator
 from django.conf import settings as django_settings
 
 # Import models and forms
-from .models import Consultation, SystemSettings
+from .models import Consultation, SystemSettings, Review
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
 from .utils import generate_pdf_report
 
@@ -177,6 +177,24 @@ def stream_ai_response(request, pk):
             # 4. Save to Database
             consultation.summary = generated_text
             consultation.is_reviewed = False
+            
+            # --- Save Original (Continuous Learning) ---
+            parsed_original = {
+                'summary': generated_text,
+                'diagnosis': "",
+                'management': ""
+            }
+            # Try to parse structure for original fields too if possible, 
+            # or just rely on the same parsing logic if we moved logic to models/utils.
+            # For now, we reuse the loose text for summary, but if the model outputs structure, we should parse it.
+            # We don't have the `_parse_response` here easily accessible as it was in `MLService`.
+            # Let's trust the `generated_text` is the raw full text.
+            consultation.original_summary = generated_text 
+            # We default diagnosis/management to empty in original if not parsed yet, or we could duplicate logic.
+            # Given `parse_response` was in `ml_service.py` but `stream_ai_response` in `views.py` doesn't use it directly here...
+            # Actually, `views.py` has logic to save `summary = generated_text`.
+            # We will just save the full text to `original_summary` as "Raw Output".
+            
             consultation.save()
             
             # 5. Send CHUNK (Critical for display)
@@ -322,9 +340,9 @@ def analytics(request):
         'total': total,
         'reviewed': reviewed,
         'pending': total - reviewed,
-        'language_data': json.dumps(language_data),
-        'daily_stats': json.dumps(daily_stats),
-        'monthly_stats': json.dumps(monthly_stats),
+        'language_data': language_data,
+        'daily_stats': daily_stats,
+        'monthly_stats': monthly_stats,
     }
     return render(request, 'consultations/analytics.html', context)
 
@@ -364,3 +382,62 @@ def export_consultation_pdf(request, pk):
     except Exception as e:
         messages.error(request, f'Error generating PDF: {str(e)}')
         return redirect('consultation_detail', pk=pk)
+
+
+# ==================== CONTINUOUS LEARNING / REVIEWS ====================
+
+def submit_review(request, pk):
+    """Handle explicit review submission"""
+    consultation = get_object_or_404(Consultation, pk=pk)
+    
+    if request.method == 'POST':
+        rating = request.POST.get('rating')
+        comment = request.POST.get('comment', '')
+        
+        # Create or update review
+        Review.objects.update_or_create(
+            consultation=consultation,
+            defaults={'rating': rating, 'comment': comment}
+        )
+        messages.success(request, 'Thank you for your feedback!')
+        
+    return redirect('consultation_detail', pk=pk)
+
+
+def export_training_data(request):
+    """
+    Export reviewed consultations as JSONL for fine-tuning.
+    Format: {"prompt": "...", "completion": "..."}
+    """
+    # Only export consultations that have been reviewed (edited or explicitly rated)
+    # Filter by is_reviewed=True (which implies human edit was made)
+    reviewed_consultations = Consultation.objects.filter(is_reviewed=True)
+    
+    response = HttpResponse(content_type='application/jsonl')
+    response['Content-Disposition'] = 'attachment; filename="medinsight_training_data.jsonl"'
+    
+    for consult in reviewed_consultations:
+        # Construct the prompt exactly as the model expects
+        prompt = f"CLINICAL CASE: {consult.clinical_case}"
+        
+        # The completion is the FINAL edited version
+        # We try to use the structured format if possible, otherwise just the summary text
+        completion = ""
+        if consult.diagnosis or consult.management:
+            completion = f"Summary: {consult.summary} Diagnosis: {consult.diagnosis} Management: {consult.management}"
+        else:
+            completion = consult.summary
+            
+        data = {
+            "prompt": prompt,
+            "completion": completion,
+            "original_completion": consult.original_summary, # Optional: for analysis
+            "metadata": {
+                "id": consult.pk,
+                "rating": consult.review.rating if hasattr(consult, 'review') else None
+            }
+        }
+        
+        response.write(json.dumps(data) + '\n')
+        
+    return response

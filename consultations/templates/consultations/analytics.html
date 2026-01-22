@@ -5,42 +5,56 @@
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-4xl font-bold text-gray-900 mb-2">Analytics & Insights</h1>
-        <p class="text-gray-600">Track usage patterns and clinical trends</p>
+    <div class="flex flex-col md:flex-row md:items-center justify-between mb-8">
+        <div class="mb-4 md:mb-0">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Analytics & Insights</h1>
+            <p class="text-gray-600">Track usage patterns and clinical trends</p>
+        </div>
+        <a href="{% url 'export_training_data' %}"
+            class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition flex items-center justify-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            <span>Export Training Data</span>
+        </a>
     </div>
-    
+
     <!-- Overview Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-white rounded-xl p-6 card-shadow">
             <div class="flex items-center justify-between mb-4">
                 <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
                     </svg>
                 </div>
             </div>
             <p class="text-3xl font-bold text-gray-900 mb-1">{{ total }}</p>
             <p class="text-sm text-gray-600">Total Consultations</p>
         </div>
-        
+
         <div class="bg-white rounded-xl p-6 card-shadow">
             <div class="flex items-center justify-between mb-4">
                 <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
             </div>
             <p class="text-3xl font-bold text-gray-900 mb-1">{{ reviewed }}</p>
             <p class="text-sm text-gray-600">Reviewed by Clinicians</p>
         </div>
-        
+
         <div class="bg-white rounded-xl p-6 card-shadow">
             <div class="flex items-center justify-between mb-4">
                 <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                     <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
             </div>
@@ -48,21 +62,21 @@
             <p class="text-sm text-gray-600">Pending Review</p>
         </div>
     </div>
-    
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <!-- Daily Activity Chart -->
         <div class="bg-white rounded-xl card-shadow p-6">
             <h2 class="text-xl font-bold text-gray-900 mb-6">Daily Activity (Last 30 Days)</h2>
             <canvas id="dailyChart" height="250"></canvas>
         </div>
-        
+
         <!-- Monthly Trends -->
         <div class="bg-white rounded-xl card-shadow p-6">
             <h2 class="text-xl font-bold text-gray-900 mb-6">Monthly Trends</h2>
             <canvas id="monthlyChart" height="250"></canvas>
         </div>
     </div>
-    
+
     <!-- Language Distribution -->
     <div class="bg-white rounded-xl card-shadow p-6">
         <h2 class="text-xl font-bold text-gray-900 mb-6">Language Distribution</h2>
@@ -79,6 +93,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ daily_stats|json_script:"daily-data" }}
+{{ monthly_stats|json_script:"monthly-data" }}
+{{ language_data|json_script:"language-data" }}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script>
     // Chart colors
@@ -90,9 +107,9 @@
         red: 'rgb(239, 68, 68)',
         orange: 'rgb(249, 115, 22)'
     };
-    
+
     // Daily Activity Chart
-    const dailyData = {{ daily_stats|safe }};
+    const dailyData = JSON.parse(document.getElementById('daily-data').textContent);
     const dailyCtx = document.getElementById('dailyChart').getContext('2d');
     new Chart(dailyCtx, {
         type: 'line',
@@ -121,7 +138,7 @@
                 x: {
                     ticks: {
                         maxTicksLimit: 10,
-                        callback: function(val, index) {
+                        callback: function (val, index) {
                             const date = new Date(this.getLabelForValue(val));
                             return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                         }
@@ -130,9 +147,9 @@
             }
         }
     });
-    
+
     // Monthly Trends Chart
-    const monthlyData = {{ monthly_stats|safe }};
+    const monthlyData = JSON.parse(document.getElementById('monthly-data').textContent);
     const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
     new Chart(monthlyCtx, {
         type: 'bar',
@@ -158,12 +175,12 @@
             }
         }
     });
-    
+
     // Language Distribution Chart
-    const languageData = {{ language_data|safe }};
+    const languageData = JSON.parse(document.getElementById('language-data').textContent);
     const languageCtx = document.getElementById('languageChart').getContext('2d');
     const chartColors = [colors.purple, colors.blue, colors.green, colors.yellow, colors.orange, colors.red];
-    
+
     new Chart(languageCtx, {
         type: 'doughnut',
         data: {
@@ -181,7 +198,7 @@
             }
         }
     });
-    
+
     // Create custom legend
     const legendContainer = document.getElementById('languageLegend');
     languageData.forEach((item, index) => {
