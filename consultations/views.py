@@ -119,6 +119,52 @@ def consultation_result(request, pk):
 
 # ==================== AI STREAMING (FIXED) ====================
 
+def parse_clinical_response(text):
+    """
+    Parse the raw model output text into structured dictionary.
+    Expects format like: "Summary: ... Diagnosis: ... Management: ..."
+    """
+    text = text.strip()
+    
+    summary = ""
+    diagnosis = ""
+    management = ""
+
+    # Use Regex to extract sections safely (Case Insensitive)
+    diag_match = re.search(r'diagnosis[:\s]+', text, re.IGNORECASE)
+    mgmt_match = re.search(r'management[:\s]+', text, re.IGNORECASE)
+
+    if diag_match and mgmt_match:
+        # Summary is everything before Diagnosis
+        summary_end = diag_match.start()
+        summary = text[:summary_end].replace("Summary:", "").strip()
+        
+        # Diagnosis is everything between Diagnosis and Management
+        diag_start = diag_match.end()
+        diag_end = mgmt_match.start()
+        diagnosis = text[diag_start:diag_end].strip()
+        
+        # Management is everything after Management
+        mgmt_start = mgmt_match.end()
+        management = text[mgmt_start:].strip()
+        
+    elif diag_match:
+        # Fallback: Found Diagnosis but not Management
+        summary_end = diag_match.start()
+        summary = text[:summary_end].replace("Summary:", "").strip()
+        diagnosis = text[diag_match.end():].strip()
+        
+    else:
+        # Fallback: No structure found, put everything in Summary
+        summary = text
+
+    return {
+        "summary": summary,
+        "diagnosis": diagnosis,
+        "management": management
+    }
+
+
 def stream_ai_response(request, pk):
     """
     Connects to the Docker Space to get the AI response.
@@ -174,40 +220,34 @@ def stream_ai_response(request, pk):
             else:
                 generated_text = str(data)
 
-            # 4. Save to Database
-            consultation.summary = generated_text
+            # 4. Parse and Save to Database
+            parsed_data = parse_clinical_response(generated_text)
+            
+            consultation.summary = parsed_data['summary']
+            consultation.diagnosis = parsed_data['diagnosis']
+            consultation.management = parsed_data['management']
             consultation.is_reviewed = False
             
             # --- Save Original (Continuous Learning) ---
-            parsed_original = {
-                'summary': generated_text,
-                'diagnosis': "",
-                'management': ""
-            }
-            # Try to parse structure for original fields too if possible, 
-            # or just rely on the same parsing logic if we moved logic to models/utils.
-            # For now, we reuse the loose text for summary, but if the model outputs structure, we should parse it.
-            # We don't have the `_parse_response` here easily accessible as it was in `MLService`.
-            # Let's trust the `generated_text` is the raw full text.
             consultation.original_summary = generated_text 
-            # We default diagnosis/management to empty in original if not parsed yet, or we could duplicate logic.
-            # Given `parse_response` was in `ml_service.py` but `stream_ai_response` in `views.py` doesn't use it directly here...
-            # Actually, `views.py` has logic to save `summary = generated_text`.
-            # We will just save the full text to `original_summary` as "Raw Output".
-            
             consultation.save()
             
             # 5. Send CHUNK (Critical for display)
+            # We send the RAW text as chunks for real-time feel, or we could try to send parsed.
+            # But since this is a non-streaming HTTP request wrapping a stream_ai_response name...
+            # The current implementation just gets the whole response and sends it as one chunk.
+            # We will keep sending the raw text in the chunk for now, 
+            # BUT the important part is the "complete" event having the parsed data.
             chunk_data = json.dumps({"type": "chunk", "content": generated_text})
             yield f'data: {chunk_data}\n\n'
 
-            # 6. Send Complete
-            parsed_data = {
+            # 6. Send Complete with PARSED data
+            final_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
                 'management': consultation.management
             }
-            yield f'data: {json.dumps({"type": "complete", "data": parsed_data})}\n\n'
+            yield f'data: {json.dumps({"type": "complete", "data": final_data})}\n\n'
 
         except Exception as e:
             print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
