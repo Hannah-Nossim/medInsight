@@ -1,4 +1,10 @@
 from io import BytesIO
+import os
+import json
+import threading
+from django.conf import settings
+from huggingface_hub import HfApi
+from huggingface_hub.utils import RepositoryNotFoundError
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
@@ -129,3 +135,80 @@ def generate_pdf_report(consultation):
     buffer.close()
     
     return pdf
+
+
+class DatasetUploader:
+    """
+    Handles background uploading of feedback data to Hugging Face Dataset.
+    """
+    
+    def __init__(self, repo_id=None):
+        self.api = HfApi()
+        # Default to a dataset named after the user if not specified
+        self.repo_id = repo_id or "Nossim/medinsight-feedback-data"
+        self.token = os.environ.get("HF_TOKEN") or getattr(settings, 'HF_TOKEN', None)
+
+    def push_data(self, prompt, completion, original_completion=None, metadata=None):
+        """
+        Public method to trigger upload in a background thread.
+        """
+        if not self.token:
+            print("WARNING: No HF_TOKEN found. Skipping dataset upload.")
+            return
+
+        # Run in background to not block the response
+        thread = threading.Thread(
+            target=self._upload_background,
+            args=(prompt, completion, original_completion, metadata)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def _upload_background(self, prompt, completion, original_completion, metadata):
+        """
+        Actual upload logic. Appends a new JSONL file with unique name to avoid conflicts.
+        """
+        try:
+            # 1. Format the data
+            record = {
+                "prompt": prompt,
+                "completion": completion,
+                "original_completion": original_completion,
+                "timestamp": datetime.now().isoformat(),
+                "metadata": metadata or {}
+            }
+            json_line = json.dumps(record) + "\n"
+
+            # 2. Check/Create Repository
+            try:
+                self.api.repo_info(repo_id=self.repo_id, repo_type="dataset", token=self.token)
+            except RepositoryNotFoundError:
+                print(f"Creating new dataset repository: {self.repo_id}")
+                self.api.create_repo(repo_id=self.repo_id, repo_type="dataset", token=self.token, exist_ok=True)
+                # Initialize with a README
+                readme = f"---\nlicense: mit\n---\n# MedInsight Feedback Dataset\n\nAutomated feedback loop data from MedInsight app."
+                self.api.upload_file(
+                    path_or_fileobj=readme.encode('utf-8'),
+                    path_in_repo="README.md",
+                    repo_id=self.repo_id,
+                    repo_type="dataset",
+                    token=self.token
+                )
+
+            # 3. Upload a unique file to data/ directory
+            # Naming convention: feedback_{date}_{id}.jsonl
+            unique_filename = f"data/feedback_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{metadata.get('id', 'unknown')}.jsonl"
+            
+            self.api.upload_file(
+                path_or_fileobj=json_line.encode('utf-8'),
+                path_in_repo=unique_filename,
+                repo_id=self.repo_id,
+                repo_type="dataset",
+                token=self.token,
+                commit_message=f"Add feedback from consultation {metadata.get('id')}"
+            )
+            
+            print(f"Successfully uploaded feedback to {self.repo_id}/{unique_filename}")
+
+        except Exception as e:
+            print(f"Error uploading to Hugging Face: {str(e)}")

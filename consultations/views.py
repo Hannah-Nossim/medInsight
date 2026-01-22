@@ -16,7 +16,7 @@ from django.conf import settings as django_settings
 # Import models and forms
 from .models import Consultation, SystemSettings, Review
 from .forms import ConsultationForm, ConsultationEditForm, SystemSettingsForm
-from .utils import generate_pdf_report
+from .utils import generate_pdf_report, DatasetUploader
 
 # ==================== PUBLIC PAGES ====================
 
@@ -272,6 +272,27 @@ def consultation_edit(request, pk):
             consultation = form.save(commit=False)
             consultation.is_reviewed = True
             consultation.save()
+
+            # --- Automatic Learning: Push to Hugging Face Dataset ---
+            try:
+                prompt = f"CLINICAL CASE: {consultation.clinical_case}"
+                
+                # Construct structured completion if possible, strictly following training format
+                if consultation.diagnosis or consultation.management:
+                    completion = f"Summary: {consultation.summary} Diagnosis: {consultation.diagnosis} Management: {consultation.management}"
+                else:
+                    completion = consultation.summary
+
+                uploader = DatasetUploader()  # Will use default repo or env var
+                uploader.push_data(
+                    prompt=prompt, 
+                    completion=completion, 
+                    original_completion=consultation.original_summary,
+                    metadata={"id": consultation.pk, "source": "edit"}
+                )
+            except Exception as e:
+                print(f"Auto-Learning Error: {e}") # Non-blocking error
+            
             messages.success(request, 'Consultation updated successfully!')
             return redirect('consultation_detail', pk=consultation.pk)
     else:
@@ -439,6 +460,28 @@ def submit_review(request, pk):
             consultation=consultation,
             defaults={'rating': rating, 'comment': comment}
         )
+
+        # --- Automatic Learning: Push High Quality Reviews ---
+        # If rating is high (>=4), we trust this example as ground truth
+        try:
+            if int(rating) >= 4:
+                prompt = f"CLINICAL CASE: {consultation.clinical_case}"
+                
+                if consultation.diagnosis or consultation.management:
+                    completion = f"Summary: {consultation.summary} Diagnosis: {consultation.diagnosis} Management: {consultation.management}"
+                else:
+                    completion = consultation.summary
+
+                uploader = DatasetUploader()
+                uploader.push_data(
+                    prompt=prompt,
+                    completion=completion,
+                    original_completion=consultation.original_summary,
+                    metadata={"id": consultation.pk, "rating": rating, "source": "review"}
+                )
+        except Exception as e:
+            print(f"Auto-Learning Review Error: {e}")
+
         messages.success(request, 'Thank you for your feedback!')
         
     return redirect('consultation_detail', pk=pk)
