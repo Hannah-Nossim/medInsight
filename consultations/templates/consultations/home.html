@@ -35,7 +35,7 @@
 <!-- Stats Section -->
 <div class="bg-white py-12 border-y border-gray-200">
     <div class="max-w-7xl mx-auto px-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div class="flex flex-col md:flex-row justify-center items-center gap-8 md:gap-16 text-center">
             <div class="p-6">
                 <div class="text-4xl font-bold gradient-bg bg-clip-text text-transparent mb-2">
                     {{ total_consultations|default:0 }}+
@@ -75,19 +75,7 @@
                 </p>
             </div>
 
-            <!-- Feature 2 -->
-            <div class="bg-white rounded-xl p-8 card-shadow hover:shadow-2xl transition duration-300">
-                <div class="w-16 h-16 gradient-bg rounded-lg flex items-center justify-center mb-6">
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129">
-                        </path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-3">Multi-Language</h3>
-                <p class="text-gray-600">Support for English, Swahili, and Kenyan native languages for inclusive care.
-                </p>
-            </div>
+
 
             <!-- Feature 3 -->
             <div class="bg-white rounded-xl p-8 card-shadow hover:shadow-2xl transition duration-300">
