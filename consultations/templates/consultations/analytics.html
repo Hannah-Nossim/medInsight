@@ -77,18 +77,7 @@
         </div>
     </div>
 
-    <!-- Language Distribution -->
-    <div class="bg-white rounded-xl card-shadow p-6">
-        <h2 class="text-xl font-bold text-gray-900 mb-6">Language Distribution</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <canvas id="languageChart" height="200"></canvas>
-            </div>
-            <div class="flex items-center">
-                <div id="languageLegend" class="space-y-3 w-full"></div>
-            </div>
-        </div>
-    </div>
+
 </div>
 {% endblock %}
 
@@ -176,42 +165,6 @@
         }
     });
 
-    // Language Distribution Chart
-    const languageData = JSON.parse(document.getElementById('language-data').textContent);
-    const languageCtx = document.getElementById('languageChart').getContext('2d');
-    const chartColors = [colors.purple, colors.blue, colors.green, colors.yellow, colors.orange, colors.red];
 
-    new Chart(languageCtx, {
-        type: 'doughnut',
-        data: {
-            labels: languageData.map(d => d.language.toUpperCase()),
-            datasets: [{
-                data: languageData.map(d => d.count),
-                backgroundColor: chartColors.slice(0, languageData.length)
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            }
-        }
-    });
-
-    // Create custom legend
-    const legendContainer = document.getElementById('languageLegend');
-    languageData.forEach((item, index) => {
-        const legendItem = document.createElement('div');
-        legendItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
-        legendItem.innerHTML = `
-            <div class="flex items-center">
-                <div class="w-4 h-4 rounded mr-3" style="background-color: ${chartColors[index]}"></div>
-                <span class="font-medium text-gray-900">${item.language.toUpperCase()}</span>
-            </div>
-            <span class="text-gray-600 font-semibold">${item.count}</span>
-        `;
-        legendContainer.appendChild(legendItem);
-    });
 </script>
 {% endblock %}
