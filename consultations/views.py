@@ -183,12 +183,15 @@ def stream_ai_response(request, pk):
             try:
                 print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
                 # --- CONFIGURATION ---
-                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/predict"
+                # Gradio API Endpoint
+                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/api/predict"
                 # ---------------------
                 
                 # === CRITICAL FIX ===
                 formatted_input = f"CLINICAL CASE: {consultation.clinical_case}"
-                payload = {"inputs": formatted_input, "text": formatted_input}
+                
+                # Gradio expects {"data": [input1, input2, ...]}
+                payload = {"data": [formatted_input]}
                 
                 # Extended timeout for cold boots
                 response = requests.post(SPACE_ENDPOINT, json=payload, timeout=300)
@@ -223,25 +226,19 @@ def stream_ai_response(request, pk):
 
         try:
             # 3. Process the Result
-            data = result_wrapper["data"]
-            print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr)
+            # Gradio returns: {"data": ["output_string"], ...}
+            raw_data = result_wrapper["data"]
+            print(f"DEBUG: Raw Gradio Response: {raw_data}", file=sys.stderr)
 
-            # Extract text (Robust extraction supporting 'output' key)
             generated_text = ""
-            if isinstance(data, dict):
-                generated_text = (
-                    data.get('output') or 
-                    data.get('generated_text') or 
-                    data.get('summary') or 
-                    str(data)
-                )
-            elif isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], dict):
-                    generated_text = data[0].get('generated_text', str(data[0]))
-                else:
-                    generated_text = str(data[0])
+            if isinstance(raw_data, dict) and "data" in raw_data:
+                 # Extract standard Gradio output
+                 output_list = raw_data.get("data", [])
+                 if output_list and len(output_list) > 0:
+                     generated_text = str(output_list[0])
             else:
-                generated_text = str(data)
+                # Fallback logging if format is unexpected
+                generated_text = str(raw_data)
 
             # 4. Parse and Save to Database
             parsed_data = parse_clinical_response(generated_text)
