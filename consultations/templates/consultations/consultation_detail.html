@@ -25,6 +25,16 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto">
+    <div class="mb-6 no-print">
+        <a href="{% url 'consultation_history' %}"
+            class="text-gray-600 hover:text-gray-800 font-medium flex items-center space-x-1 w-fit">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+                </path>
+            </svg>
+            <span>Back</span>
+        </a>
+    </div>
     <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 no-print space-y-4 md:space-y-0">
         <div>
             <h2 class="text-3xl font-bold text-gray-800">Consultation Record</h2>
@@ -173,10 +183,9 @@
                 <div class="flex space-x-1">
                     {% for i in "12345" %}
                     <label class="cursor-pointer">
-                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer"
-                         {% if consultation.review.rating == forloop.counter %}checked 
-                         {% elif not consultation.review and forloop.counter == 5 %}checked
-                         {% endif %}>
+                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer" {% if
+                            consultation.review.rating==forloop.counter %}checked {% elif not consultation.review and
+                            forloop.counter==5 %}checked {% endif %}>
 
                         <svg class="w-8 h-8 text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-300 transition"
                             fill="currentColor" viewBox="0 0 20 20">
