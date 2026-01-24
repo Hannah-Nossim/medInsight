@@ -10,4 +10,4 @@ dj-database-url
 psycopg2-binary
 requests
 whitenoise
-gradio_client
+gradio_client>=1.3.0
