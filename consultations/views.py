@@ -228,7 +228,7 @@ def stream_ai_response(request, pk):
             # We use api_name="/predict" which is the standard default
             result = client.predict(
                 f"CLINICAL CASE: {consultation.clinical_case}",
-                fn_index=0
+                fn_index=1
             )
             
             # 4. Process Result
