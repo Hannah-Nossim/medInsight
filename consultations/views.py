@@ -183,8 +183,8 @@ def stream_ai_response(request, pk):
             try:
                 print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
                 # --- CONFIGURATION ---
-                # Gradio API Endpoint
-                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/api/predict"
+                # Gradio API Endpoint (Newer versions use /call)
+                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/call/predict"
                 # ---------------------
                 
                 # === CRITICAL FIX ===
