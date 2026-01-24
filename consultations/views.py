@@ -222,7 +222,7 @@ def stream_ai_response(request, pk):
             print(f"DEBUG: Connecting to Space {SPACE_ID}...", file=sys.stderr)
             
             # 2. Connect to the Space (Handles handshake & auth)
-            client = Client(SPACE_ID, hf_token=HF_TOKEN)
+            client = Client(SPACE_ID)
             
             # 3. Send the Case
             # We use api_name="/predict" which is the standard default
