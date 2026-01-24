@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = ['.railway.app', '127.0.0.1', 'localhost']
 
 # CRITICAL FOR RAILWAY: prevents "403 Forbidden" errors on forms
-CSRF_TRUSTED_ORIGINS = ['https://*.railway.app']
+CSRF_TRUSTED_ORIGINS = ["https://web-production-80b53.up.railway.app",]
 
 # Application definition
 INSTALLED_APPS = [
