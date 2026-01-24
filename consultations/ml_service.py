@@ -1,115 +1,96 @@
 import os
+import sys
 import json
 import re
 from django.conf import settings
-from huggingface_hub import InferenceClient
+from gradio_client import Client  # <--- MUST use this for Spaces
 
 class MLService:
     """
-    Service for Hugging Face Inference API.
-    Replaces the local PyTorch model with cloud API calls.
+    Service for connecting to your Hugging Face Gradio Space.
     """
     
     def __init__(self):
-        # Load token from environment or settings
-        self.api_token = os.environ.get("HF_TOKEN") or getattr(settings, 'HF_API_TOKEN', None)
-        # Your specific fine-tuned model on Hugging Face
-        self.repo_id = "Nossim/MedInsight"  
+        # 1. Point to your SPACE name (not the URL, just 'username/space')
+        self.space_id = "sankaire/MedInsight-App" 
         
-        if self.api_token:
-            self.client = InferenceClient(model=self.repo_id, token=self.api_token)
-        else:
+        # Load Token
+        self.api_token = os.environ.get("HF_TOKEN")
+        
+        print(f"[ML Service] Connecting to Space: {self.space_id}...", file=sys.stderr)
+        
+        try:
+            # Initialize Gradio Client
+            self.client = Client(self.space_id, hf_token=self.api_token)
+            print("[ML Service] Connected successfully!", file=sys.stderr)
+        except Exception as e:
             self.client = None
-            print("Warning: HF_TOKEN not found. MLService will fail if called.")
-
-    def create_prompt(self, consultation):
-        """
-        Create the prompt for the T5 model using the single clinical_case field.
-        """
-        # T5-base usually expects a specific prefix like "summarize: "
-        return (
-            f"Summarize case, provide diagnosis, and list 6 management steps:\n"
-            f"{consultation.clinical_case}"
-        )
+            print(f"[ML Service] Connection Failed: {e}", file=sys.stderr)
 
     def stream_response(self, consultation):
         """
-        Generator that streams the response from Hugging Face API.
-        Yields chunks of text for the frontend.
+        Sends text to the Gradio Space and returns the result.
         """
         if not self.client:
-            yield 'data: {"type": "error", "message": "Server Config Error: HF_TOKEN missing"}\n\n'
+            yield "Error: Could not connect to AI Service."
             return
 
-        prompt = self.create_prompt(consultation)
+        # 2. Prepare the input
+        # Note: We don't need the "Bossy Prompt" here if your Gradio App 
+        # already adds it inside app.py. Just send the case.
+        input_text = consultation.clinical_case
+        
+        print(f"[ML Service] Sending case...", file=sys.stderr)
         full_response = ""
 
         try:
-            # Call HF API with streaming
-            stream = self.client.text_generation(
-                prompt, 
-                max_new_tokens=512, 
-                stream=True
+            # 3. Call the Gradio Function
+            # CHECK: Does your Space use /predict or /medinsight_response?
+            # Go to your Space -> Footer -> "Use via API" to check.
+            result = self.client.predict(
+                input_text,           
+                api_name="/predict"   
             )
 
-            for token in stream:
-                # Some versions of the library return an object, others a string. Handle both.
-                content = token if isinstance(token, str) else token.token.text
-                
-                # Yield content to the view loop
-                yield content
-                full_response += content
-
-            # After streaming is done, parse and save the full result
-            parsed_data = self._parse_response(full_response)
+            # Gradio Client returns the full string at once.
+            full_response = str(result)
             
-            # Save to Database
+            # Send to frontend
+            yield full_response
+
+            # 4. Save to Database
+            parsed_data = self._parse_response(full_response)
             consultation.summary = parsed_data['summary']
             consultation.diagnosis = parsed_data['diagnosis']
             consultation.management = parsed_data['management']
             consultation.save()
+            print(f"[ML Service] Saved consultation #{consultation.pk}", file=sys.stderr)
 
         except Exception as e:
-            # Raise exception so the view can capture it
-            raise Exception(f"HF API Error: {str(e)}")
+            print(f"[ML Service Error] {str(e)}", file=sys.stderr)
+            raise Exception(f"AI Service Failed: {str(e)}")
 
     def _parse_response(self, text):
         """
-        Parse the raw model output text into structured dictionary.
-        Expects format like: "Summary: ... Diagnosis: ... Management: ..."
+        Parses the output into sections (Summary, Diagnosis, Management).
         """
         text = text.strip()
-        
         summary = ""
         diagnosis = ""
         management = ""
 
-        # Use Regex to extract sections safely (Case Insensitive)
+        # Case-insensitive search
         diag_match = re.search(r'diagnosis[:\s]+', text, re.IGNORECASE)
         mgmt_match = re.search(r'management[:\s]+', text, re.IGNORECASE)
 
         if diag_match and mgmt_match:
-            # Summary is everything before Diagnosis
-            summary_end = diag_match.start()
-            summary = text[:summary_end].replace("Summary:", "").strip()
-            
-            # Diagnosis is everything between Diagnosis and Management
-            diag_start = diag_match.end()
-            diag_end = mgmt_match.start()
-            diagnosis = text[diag_start:diag_end].strip()
-            
-            # Management is everything after Management
-            mgmt_start = mgmt_match.end()
-            management = text[mgmt_start:].strip()
-            
+            summary = text[:diag_match.start()].replace("Summary:", "").strip()
+            diagnosis = text[diag_match.end():mgmt_match.start()].strip()
+            management = text[mgmt_match.end():].strip()
         elif diag_match:
-            # Fallback: Found Diagnosis but not Management
-            summary_end = diag_match.start()
-            summary = text[:summary_end].replace("Summary:", "").strip()
+            summary = text[:diag_match.start()].replace("Summary:", "").strip()
             diagnosis = text[diag_match.end():].strip()
-            
         else:
-            # Fallback: No structure found, put everything in Summary
             summary = text
 
         return {

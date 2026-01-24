@@ -165,98 +165,92 @@ def parse_clinical_response(text):
     }
 
 
+import json
+import os
+import sys
+import re
+from django.shortcuts import get_object_or_404
+from django.http import StreamingHttpResponse
+from gradio_client import Client  # <--- The official connector
+
+# Helper function to parse the text (Keep this in your views.py)
+def parse_clinical_response(text):
+    text = text.strip()
+    summary = ""
+    diagnosis = ""
+    management = ""
+
+    # Case-insensitive regex to find sections
+    diag_match = re.search(r'diagnosis[:\s]+', text, re.IGNORECASE)
+    mgmt_match = re.search(r'management[:\s]+', text, re.IGNORECASE)
+
+    if diag_match and mgmt_match:
+        summary = text[:diag_match.start()].replace("Summary:", "").strip()
+        diagnosis = text[diag_match.end():mgmt_match.start()].strip()
+        management = text[mgmt_match.end():].strip()
+    elif diag_match:
+        summary = text[:diag_match.start()].replace("Summary:", "").strip()
+        diagnosis = text[diag_match.end():].strip()
+    else:
+        summary = text
+
+    return {
+        "summary": summary,
+        "diagnosis": diagnosis,
+        "management": management
+    }
+
+# ==========================================
+# ✅ FINAL CORRECTED FUNCTION
+# ==========================================
 def stream_ai_response(request, pk):
-    """
-    Connects to the Docker Space to get the AI response.
-    Uses the correct training prefix 'CLINICAL CASE:' to trigger structured output.
-    """
     consultation = get_object_or_404(Consultation, pk=pk)
-    
+
     def event_stream():
-        # 1. FORCE FLUSH
-        yield ': ' + (' ' * 2048) + '\n\n'
+        # 1. Wake up the stream
+        yield ': start\n\n'
         
-        # Shared state for thread communication
-        result_wrapper = {"data": None, "error": None, "done": False}
-        
-        def run_inference():
-            try:
-                print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
-                # --- CONFIGURATION ---
-                # Gradio API Endpoint (Newer versions use /call)
-                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/call/predict"
-                # ---------------------
-                
-                # === CRITICAL FIX ===
-                formatted_input = f"CLINICAL CASE: {consultation.clinical_case}"
-                
-                # Gradio expects {"data": [input1, input2, ...]}
-                payload = {"data": [formatted_input]}
-                
-                # Extended timeout for cold boots
-                response = requests.post(SPACE_ENDPOINT, json=payload, timeout=300)
-                response.raise_for_status()
-                result_wrapper["data"] = response.json()
-            except Exception as e:
-                result_wrapper["error"] = str(e)
-            finally:
-                result_wrapper["done"] = True
-
-        # Start inference in background thread
-        import threading
-        import time
-        thread = threading.Thread(target=run_inference)
-        thread.start()
-
-        yield 'data: {"type": "start"}\n\n'
-
-        # Loop while waiting for thread to finish (Prevent Timeout)
-        while not result_wrapper["done"]:
-            time.sleep(1) # Check every second
-            # Send keep-alive comment every loop to keep connection open
-            # (Railway/Heroku need bytes every 30-55s)
-            yield ': keep-alive\n\n'
-        
-        # Thread finished, process results
-        if result_wrapper["error"]:
-            print(f"CRITICAL AI ERROR: {result_wrapper['error']}", file=sys.stderr)
-            error_msg = json.dumps({"type": "error", "message": f"AI Error: {result_wrapper['error']}"})
-            yield f'data: {error_msg}\n\n'
-            return
-
         try:
-            # 3. Process the Result
-            # Gradio returns: {"data": ["output_string"], ...}
-            raw_data = result_wrapper["data"]
-            print(f"DEBUG: Raw Gradio Response: {raw_data}", file=sys.stderr)
+            yield 'data: {"type": "start"}\n\n'
+            
+            # --- CONFIGURATION ---
+            # Correct ID format: "Username/SpaceName"
+            SPACE_ID = "nossim/MedInsight-App"
+            HF_TOKEN = os.environ.get("HF_TOKEN")
+            # ---------------------
 
-            generated_text = ""
-            if isinstance(raw_data, dict) and "data" in raw_data:
-                 # Extract standard Gradio output
-                 output_list = raw_data.get("data", [])
-                 if output_list and len(output_list) > 0:
-                     generated_text = str(output_list[0])
-            else:
-                # Fallback logging if format is unexpected
-                generated_text = str(raw_data)
-
-            # 4. Parse and Save to Database
+            print(f"DEBUG: Connecting to Space {SPACE_ID}...", file=sys.stderr)
+            
+            # 2. Connect to the Space (Handles handshake & auth)
+            client = Client(SPACE_ID, hf_token=HF_TOKEN)
+            
+            # 3. Send the Case
+            # We use api_name="/predict" which is the standard default
+            result = client.predict(
+                f"CLINICAL CASE: {consultation.clinical_case}",
+                api_name="/predict" 
+            )
+            
+            # 4. Process Result
+            # Gradio Client returns the full text at once
+            generated_text = str(result)
+            
+            # 5. Save to Database
             parsed_data = parse_clinical_response(generated_text)
             
             consultation.summary = parsed_data['summary']
             consultation.diagnosis = parsed_data['diagnosis']
             consultation.management = parsed_data['management']
             consultation.is_reviewed = False
-            
-            # --- Save Original (Continuous Learning) ---
-            consultation.original_summary = generated_text 
+            consultation.original_summary = generated_text
             consultation.save()
             
-            # 5. Send CHUNK
+            # 6. Send to Frontend
+            # Since Gradio Client is not streaming, we send one big chunk
             chunk_data = json.dumps({"type": "chunk", "content": generated_text})
             yield f'data: {chunk_data}\n\n'
 
-            # 6. Send Complete with PARSED data
+            # 7. Complete Signal
             final_data = {
                 'summary': consultation.summary,
                 'diagnosis': consultation.diagnosis,
@@ -265,8 +259,8 @@ def stream_ai_response(request, pk):
             yield f'data: {json.dumps({"type": "complete", "data": final_data})}\n\n'
 
         except Exception as e:
-            print(f"PROCESSING ERROR: {str(e)}", file=sys.stderr)
-            error_msg = json.dumps({"type": "error", "message": f"Processing Error: {str(e)}"})
+            print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
+            error_msg = json.dumps({"type": "error", "message": f"AI Error: {str(e)}"})
             yield f'data: {error_msg}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
