@@ -176,31 +176,54 @@ def stream_ai_response(request, pk):
         # 1. FORCE FLUSH
         yield ': ' + (' ' * 2048) + '\n\n'
         
+        # Shared state for thread communication
+        result_wrapper = {"data": None, "error": None, "done": False}
+        
+        def run_inference():
+            try:
+                print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
+                # --- CONFIGURATION ---
+                SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/predict"
+                # ---------------------
+                
+                # === CRITICAL FIX ===
+                formatted_input = f"CLINICAL CASE: {consultation.clinical_case}"
+                payload = {"inputs": formatted_input, "text": formatted_input}
+                
+                # Extended timeout for cold boots
+                response = requests.post(SPACE_ENDPOINT, json=payload, timeout=300)
+                response.raise_for_status()
+                result_wrapper["data"] = response.json()
+            except Exception as e:
+                result_wrapper["error"] = str(e)
+            finally:
+                result_wrapper["done"] = True
+
+        # Start inference in background thread
+        import threading
+        import time
+        thread = threading.Thread(target=run_inference)
+        thread.start()
+
+        yield 'data: {"type": "start"}\n\n'
+
+        # Loop while waiting for thread to finish (Prevent Timeout)
+        while not result_wrapper["done"]:
+            time.sleep(1) # Check every second
+            # Send keep-alive comment every loop to keep connection open
+            # (Railway/Heroku need bytes every 30-55s)
+            yield ': keep-alive\n\n'
+        
+        # Thread finished, process results
+        if result_wrapper["error"]:
+            print(f"CRITICAL AI ERROR: {result_wrapper['error']}", file=sys.stderr)
+            error_msg = json.dumps({"type": "error", "message": f"AI Error: {result_wrapper['error']}"})
+            yield f'data: {error_msg}\n\n'
+            return
+
         try:
-            print(f"DEBUG: Connecting to Docker Space for consultation {pk}", file=sys.stderr)
-
-            # --- CONFIGURATION ---
-            # Your specific Docker Space URL
-            SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/predict"
-            # ---------------------
-
-            yield 'data: {"type": "start"}\n\n'
-            
-            # 2. Call the Docker Space
-            # === CRITICAL FIX ===
-            # We change "summarize:" to "CLINICAL CASE:" to match your training data.
-            formatted_input = f"CLINICAL CASE: {consultation.clinical_case}"
-            
-            payload = {
-                "inputs": formatted_input,
-                "text": formatted_input
-            }
-            
-            response = requests.post(SPACE_ENDPOINT, json=payload, timeout=120)
-            response.raise_for_status()
-            
             # 3. Process the Result
-            data = response.json()
+            data = result_wrapper["data"]
             print(f"DEBUG: Raw Docker Response: {data}", file=sys.stderr)
 
             # Extract text (Robust extraction supporting 'output' key)
@@ -232,12 +255,7 @@ def stream_ai_response(request, pk):
             consultation.original_summary = generated_text 
             consultation.save()
             
-            # 5. Send CHUNK (Critical for display)
-            # We send the RAW text as chunks for real-time feel, or we could try to send parsed.
-            # But since this is a non-streaming HTTP request wrapping a stream_ai_response name...
-            # The current implementation just gets the whole response and sends it as one chunk.
-            # We will keep sending the raw text in the chunk for now, 
-            # BUT the important part is the "complete" event having the parsed data.
+            # 5. Send CHUNK
             chunk_data = json.dumps({"type": "chunk", "content": generated_text})
             yield f'data: {chunk_data}\n\n'
 
@@ -250,8 +268,8 @@ def stream_ai_response(request, pk):
             yield f'data: {json.dumps({"type": "complete", "data": final_data})}\n\n'
 
         except Exception as e:
-            print(f"CRITICAL AI ERROR: {str(e)}", file=sys.stderr)
-            error_msg = json.dumps({"type": "error", "message": f"AI Error: {str(e)}"})
+            print(f"PROCESSING ERROR: {str(e)}", file=sys.stderr)
+            error_msg = json.dumps({"type": "error", "message": f"Processing Error: {str(e)}"})
             yield f'data: {error_msg}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')

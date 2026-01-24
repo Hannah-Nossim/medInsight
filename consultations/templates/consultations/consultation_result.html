@@ -11,7 +11,7 @@
                 {{ consultation.get_language_display }}
             </span>
         </div>
-        
+
         <div class="border-t pt-4">
             <p class="text-sm text-gray-600 mb-2">Case Narrative</p>
             <div class="bg-gray-50 rounded p-4 text-gray-800 text-sm whitespace-pre-wrap">
@@ -19,13 +19,15 @@
             </div>
         </div>
     </div>
-    
+
     <div class="space-y-6">
         <div id="loading-state" class="bg-white rounded-xl card-shadow p-8 text-center">
             <div class="flex flex-col items-center space-y-4">
                 <div class="relative w-16 h-16">
                     <div class="absolute inset-0 border-4 border-purple-200 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+                    <div
+                        class="absolute inset-0 border-4 border-purple-600 rounded-full border-t-transparent animate-spin">
+                    </div>
                 </div>
                 <div>
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Analyzing Clinical Case...</h3>
@@ -33,42 +35,45 @@
                 </div>
             </div>
         </div>
-        
+
         <div id="summary-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="section-badge bg-blue-100 text-blue-700">Summary</span>
             </div>
             <div id="summary-content" class="streaming-text text-gray-700 prose max-w-none"></div>
         </div>
-        
+
         <div id="diagnosis-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="section-badge bg-green-100 text-green-700">Diagnosis</span>
             </div>
             <div id="diagnosis-content" class="streaming-text text-gray-700 prose max-w-none"></div>
         </div>
-        
+
         <div id="management-section" class="bg-white rounded-xl card-shadow p-6 hidden fade-in">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="section-badge bg-purple-100 text-purple-700">Management</span>
             </div>
             <div id="management-content" class="streaming-text text-gray-700 prose max-w-none"></div>
         </div>
-        
+
         <div id="action-buttons" class="flex items-center justify-end space-x-4 hidden">
-            <a href="{% url 'consultation_form' %}" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200">
+            <a href="{% url 'consultation_form' %}"
+                class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition duration-200">
                 New Consultation
             </a>
-            <a href="{% url 'consultation_edit' consultation.pk %}" class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200">
+            <a href="{% url 'consultation_edit' consultation.pk %}"
+                class="px-6 py-3 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200">
                 Review & Edit
             </a>
         </div>
     </div>
-    
+
     <div id="error-state" class="bg-red-50 border border-red-200 rounded-xl p-6 hidden">
         <div class="flex items-start space-x-3">
             <svg class="w-6 h-6 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             <div>
                 <h4 class="font-semibold text-red-900 mb-1">Error Processing Request</h4>
@@ -84,31 +89,31 @@
     // Server-Sent Events for real-time streaming
     const consultationId = "{{ consultation.pk }}";
     const streamUrl = "{% url 'stream_ai_response' consultation.pk %}";
-    
+
     // Elements
     const loadingState = document.getElementById('loading-state');
     const summarySection = document.getElementById('summary-section');
     const diagnosisSection = document.getElementById('diagnosis-section');
     const managementSection = document.getElementById('management-section');
-    
+
     const summaryContent = document.getElementById('summary-content');
     const diagnosisContent = document.getElementById('diagnosis-content');
     const managementContent = document.getElementById('management-content');
-    
+
     const actionButtons = document.getElementById('action-buttons');
     const errorState = document.getElementById('error-state');
     const errorMessage = document.getElementById('error-message');
-    
+
     let fullResponse = '';
 
     // Initialize EventSource
     const eventSource = new EventSource(streamUrl);
-    
-    eventSource.onmessage = function(event) {
+
+    eventSource.onmessage = function (event) {
         try {
             // Note: Data from Django streaming is typically JSON-wrapped string
             const data = JSON.parse(event.data);
-            
+
             if (data.type === 'start') {
                 loadingState.classList.add('hidden');
                 // Show the first section immediately
@@ -123,31 +128,38 @@
                 actionButtons.classList.remove('hidden');
                 eventSource.close();
             }
+            else if (data.type === 'error') {
+                console.error('Backend Error:', data.message);
+                eventSource.close();
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                errorMessage.textContent = data.message;
+            }
         } catch (error) {
             console.error('Error parsing stream data:', error);
         }
     };
-    
-    eventSource.onerror = function(error) {
+
+    eventSource.onerror = function (error) {
         console.error('EventSource error:', error);
         loadingState.classList.add('hidden');
         errorState.classList.remove('hidden');
         errorMessage.textContent = 'Connection lost. Please refresh or try again.';
         eventSource.close();
     };
-    
+
     function parseAndDisplayRawText(text) {
         // T5 Output usually looks like: "Summary: ... Diagnosis: ... Management: ..."
         // We use Regex to extract these parts safely.
-        
+
         // 1. Extract Summary (From start or "Summary:" tag until "Diagnosis:" or end)
         const summaryMatch = text.match(/(?:summary[:\s]*)([\s\S]*?)(?=(?:diagnosis[:\s]*)|$)/i);
         // Fallback: If no "Summary:" tag exists yet, treat strictly the beginning as summary
         const summaryText = summaryMatch ? summaryMatch[1] : text.split(/diagnosis[:\s]*/i)[0];
-        
+
         // 2. Extract Diagnosis (From "Diagnosis:" tag until "Management:" or end)
         const diagnosisMatch = text.match(/diagnosis[:\s]*([\s\S]*?)(?=(?:management[:\s]*)|$)/i);
-        
+
         // 3. Extract Management (From "Management:" tag until end)
         const managementMatch = text.match(/management[:\s]*([\s\S]*)/i);
 
@@ -166,7 +178,7 @@
             managementContent.innerHTML = formatText(managementMatch[1]);
         }
     }
-    
+
     function formatText(text) {
         if (!text) return '';
         return text
@@ -175,8 +187,8 @@
             .replace(/\n/g, '<br>') // Newlines
             .replace(/-\s/g, '• '); // Bullet points
     }
-    
-    window.addEventListener('beforeunload', function() {
+
+    window.addEventListener('beforeunload', function () {
         if (eventSource.readyState !== EventSource.CLOSED) {
             eventSource.close();
         }
