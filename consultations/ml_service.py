@@ -14,7 +14,7 @@ class MLService:
         # Load token from environment or settings
         self.api_token = os.environ.get("HF_TOKEN") or getattr(settings, 'HF_API_TOKEN', None)
         # Your specific fine-tuned model on Hugging Face
-        self.repo_id = "Nossim/my-t5-finetuned"  
+        self.repo_id = "Nossim/MedInsight"  
         
         if self.api_token:
             self.client = InferenceClient(model=self.repo_id, token=self.api_token)
@@ -27,7 +27,10 @@ class MLService:
         Create the prompt for the T5 model using the single clinical_case field.
         """
         # T5-base usually expects a specific prefix like "summarize: "
-        return f"summarize: {consultation.clinical_case}"
+        return (
+            f"Summarize case, provide diagnosis, and list 6 management steps:\n"
+            f"{consultation.clinical_case}"
+        )
 
     def stream_response(self, consultation):
         """

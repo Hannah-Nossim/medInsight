@@ -81,9 +81,10 @@ class SystemSettings(models.Model):
     
     # Generation Parameters
     max_input_length = models.IntegerField(default=512)
-    max_output_length = models.IntegerField(default=1024)
-    temperature = models.FloatField(default=0.7)
-    
+    max_output_length = models.IntegerField(default=450)
+    min_output_length = models.IntegerField(default=150, help_text="Forces model to write long enough to include management steps")
+    temperature = models.FloatField(default=0.6)
+    repetition_penalty = models.FloatField(default=1.3)
     # System preferences
     default_language = models.CharField(
         max_length=10,

@@ -181,7 +181,7 @@ def stream_ai_response(request, pk):
 
             # --- CONFIGURATION ---
             # Your specific Docker Space URL
-            SPACE_ENDPOINT = "https://nossim-my-flan-t5-base.hf.space/predict"
+            SPACE_ENDPOINT = "https://nossim-medinsight-app.hf.space/predict"
             # ---------------------
 
             yield 'data: {"type": "start"}\n\n'

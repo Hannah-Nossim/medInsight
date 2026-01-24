@@ -71,8 +71,10 @@ class SystemSettingsForm(forms.ModelForm):
         model = SystemSettings
         fields = [
             'max_input_length',
+            'min_output_length',
             'max_output_length',
             'temperature',
+            'repetition_penalty',
             'default_language',
         ]
         widgets = {

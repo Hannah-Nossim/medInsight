@@ -11,7 +11,7 @@ class LLMService:
     def __init__(self):
         # Get token from environment
         self.api_token = os.environ.get("HF_TOKEN")
-        self.repo_id = "Nossim/my-t5-finetuned"
+        self.repo_id = "Nossim/MedInsight"
         
         if not self.api_token:
             print("WARNING: HF_TOKEN not set!", file=sys.stderr)
