@@ -50,6 +50,19 @@
                 </svg>
                 <span>Print</span>
             </button>
+            <!-- Save to Clinic Button (Integration) -->
+            {% if consultation.patient_id %}
+            <a href="{% url 'save_to_clinic' consultation.pk %}"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition duration-200 flex items-center justify-center space-x-2 shadow-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                    </path>
+                </svg>
+                <span>Save to Record</span>
+            </a>
+            {% endif %}
+
             <a href="{% url 'consultation_edit' consultation.pk %}"
                 class="px-4 py-2 gradient-bg text-white rounded-lg font-medium hover:shadow-lg transition duration-200 flex items-center justify-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,10 +196,10 @@
                 <div class="flex space-x-1">
                     {% for i in "12345" %}
                     <label class="cursor-pointer">
-                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer" 
-                        {% if consultation.review.rating == forloop.counter %}checked
-                        {% elif not consultation.review and forloop.counter == 5 %}checked 
-                        {% endif %}>
+                        <input type="radio" name="rating" value="{{ forloop.counter }}" class="sr-only peer"
+                          {% if consultation.review.rating == forloop.counter %}checked
+                          {% elif not consultation.review and forloop.counter == 5 %}checked
+                          {% endif %}>
 
                         <svg class="w-8 h-8 text-gray-300 peer-checked:text-yellow-400 hover:text-yellow-300 transition"
                             fill="currentColor" viewBox="0 0 20 20">

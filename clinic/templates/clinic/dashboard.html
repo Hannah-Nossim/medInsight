@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinic Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-indigo-600">MedInsight Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-600 px-3 py-2 text-sm">Hello, {{ request.user.username }}</span>
+                    <a href="{% url 'logout' %}"
+                        class="text-red-600 hover:text-red-800 px-3 py-2 rounded-md text-sm font-medium">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Column 1: Patient Registry (Left) -->
+        <div class="lg:col-span-1 space-y-8">
+            <!-- Patient Registration Form -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Register New Patient</h2>
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="submit_patient" value="1">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Patient ID</label>
+                        {{ patient_form.patient_id }}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Name</label>
+                        {{ patient_form.name }}
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Age</label>
+                            {{ patient_form.age }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Gender</label>
+                            {{ patient_form.gender }}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Phone (Optional)</label>
+                        {{ patient_form.phone }}
+                    </div>
+
+                    <button type="submit"
+                        class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 transition font-bold mt-2">
+                        Register Patient
+                    </button>
+                </form>
+            </div>
+
+            <!-- Recent Patients List -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Recent Patients</h2>
+                {% if recent_patients %}
+                <ul class="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                    {% for patient in recent_patients %}
+                    <li class="py-3">
+                        <p class="font-semibold text-gray-900">{{ patient.name }}</p>
+                        <p class="text-xs text-gray-500">
+                            ID: {{ patient.patient_id }} | {{ patient.get_gender_display }} | {{ patient.age }} yrs
+                        </p>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No patients found.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Column 2 & 3: Visit Section (Right, Wider) -->
+        <div class="lg:col-span-2">
+            <div class="bg-white p-8 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-2">Consultation / New Visit</h2>
+
+                <form method="post" class="space-y-6">
+                    {% csrf_token %}
+                    <input type="hidden" name="submit_visit" value="1">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Patient</label>
+                        {{ visit_form.patient }}
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Symptoms / History</label>
+                        {{ visit_form.symptoms }}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Diagnosis</label>
+                            {{ visit_form.diagnosis }}
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Management Plan</label>
+                            {{ visit_form.management_plan }}
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t mt-4">
+                        <!-- MedInsight Button Moved to Bottom Left -->
+                        <button type="button" onclick="openMedInsight()"
+                            class="w-full md:w-auto bg-purple-100 text-purple-700 px-6 py-3 rounded-lg font-bold hover:bg-purple-200 transition flex items-center justify-center gap-2 border border-purple-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Open MedInsight AI
+                        </button>
+
+                        <button type="submit"
+                            class="w-full md:w-auto bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-lg">
+                            Save Visit Record
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Integration Script -->
+   <script>
+    function openMedInsight() {
+        // 1. Try to get the symptoms text, but don't force it
+        const symptomsField = document.getElementById('id_visit-symptoms') || document.querySelector('[name="visit-symptoms"]');
+        
+        // If the field exists, grab the value; otherwise, use an empty string
+        const symptoms = symptomsField ? symptomsField.value : '';
+
+        // 2. Prepare the URL
+        const baseUrl = "/medinsight/";
+        const params = new URLSearchParams({
+            clinical_case: symptoms // This will be empty if the user hasn't typed anything
+        });
+
+        // 3. Open the window
+        // Tip: Using 'MedInsightWindow' instead of '_blank' prevents opening 50 new tabs
+        // if you click the button multiple times.
+        window.open(`${baseUrl}?${params.toString()}`, 'MedInsightWindow', 'width=800,height=900,scrollbars=yes');
+    }
+</script>
+
+</body>
+
+</html>

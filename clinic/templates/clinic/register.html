@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - MedInsight Clinic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+
+<body class="gradient-bg flex items-center justify-center min-h-screen p-4">
+    <div class="glass p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all hover:scale-[1.01]">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Create Account</h1>
+            <p class="text-gray-500 mt-2">Join MedInsight Clinic today</p>
+        </div>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-4">
+                {% for error in form.non_field_errors %}
+                <p class="text-sm text-red-700">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Loop through fields manually or rely on form.as_p but styled? 
+                 UserCreationForm has many fields, typically username, password 1 & 2. 
+                 Let's iterate carefully or use a helper, but manual is best for UI control. 
+            -->
+
+            {% for field in form %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+                <!-- Hacky way to add class to unknown fields without widget tweaks in python -->
+                <!-- Ideally we'd tweak widgets in form, but here let's assume standard django rendering 
+                     OR we can use a custom tag or just styling the input via CSS if we can select it? 
+                     Better: We stick to safe {{ field }} but wrap well. 
+                     OR we can update the form class in views? 
+                     Let's use a simple JS fix or 'widget tweaks' library if installed? No library.
+                     Okay, I'll update the Python Form class if needed, or better, 
+                     I'll just assume standard fields and let them look 'okay' or use a regex filter if I could?
+                     
+                     Simplest: Render them manually if we know them (username, password, password confirm).
+                     But UserCreationForm might have more.
+                     
+                     Let's stick to {{ field }} but style the input globally via CSS.
+                -->
+                <div class="mt-1">
+                    {{ field }}
+                </div>
+                {% if field.help_text %}
+                <p class="text-xs text-gray-400 mt-1">{{ field.help_text|safe }}</p>
+                {% endif %}
+                {% if field.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- CSS injection for the inputs rendered by django -->
+            <style>
+                input[type="text"],
+                input[type="password"],
+                input[type="email"] {
+                    width: 100%;
+                    padding: 0.75rem 1rem;
+                    border-radius: 0.5rem;
+                    border: 1px solid #d1d5db;
+                    outline: none;
+                    transition: all 0.2s;
+                }
+
+                input[type="text"]:focus,
+                input[type="password"]:focus,
+                input[type="email"]:focus {
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+                }
+
+                ul.errorlist {
+                    color: #ef4444;
+                    font-size: 0.75rem;
+                    margin-top: 0.25rem;
+                }
+            </style>
+
+            <button type="submit"
+                class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 rounded-xl hover:shadow-lg transition transform hover:-translate-y-0.5 mt-6">
+                Get Started
+            </button>
+        </form>
+
+        <div class="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p class="text-sm text-gray-600">
+                Already have an account?
+                <a href="{% url 'login' %}" class="text-indigo-600 font-bold hover:text-indigo-800 transition">Log
+                    In</a>
+            </p>
+            <p class="mt-4">
+                <a href="{% url 'welcome' %}" class="text-xs text-gray-400 hover:text-gray-600">Back to Home</a>
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -14,6 +14,7 @@ urlpatterns = [
     # Consultation flow
     path('consultation/new/', views.consultation_form, name='consultation_form'),
     path('consultation/<int:pk>/result/', views.consultation_result, name='consultation_result'),
+    path('consultation/<int:pk>/save-to-clinic/', views.save_to_clinic, name='save_to_clinic'),
     path('consultation/<int:pk>/stream/', views.stream_ai_response, name='stream_ai_response'),
     path('consultation/<int:pk>/edit/', views.consultation_edit, name='consultation_edit'),
     path('consultation/<int:pk>/', views.consultation_detail, name='consultation_detail'),

@@ -144,8 +144,8 @@ class DatasetUploader:
     
     def __init__(self, repo_id=None):
         self.api = HfApi()
-        # Default to a dataset named after the user if not specified
-        self.repo_id = repo_id or "Nossim/medinsight-v2"
+        # Default to settings or hardcoded fallback
+        self.repo_id = repo_id or getattr(settings, 'HF_REPO_ID', "Nossim/medinsight-v2")
         self.token = os.environ.get("HF_TOKEN") or getattr(settings, 'HF_TOKEN', None)
 
     def push_data(self, prompt, completion, original_completion=None, metadata=None):

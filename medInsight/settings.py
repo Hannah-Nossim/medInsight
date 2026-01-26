@@ -13,6 +13,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-jim(o%!-y^7fgpp3^$r814!kq41q*rtno+83*!8c-*y2i0-1&7')
 
+# Hugging Face Configuration
+HF_TOKEN = config('HF_TOKEN', default=None)
+HF_REPO_ID = config('HF_REPO_ID', default='Nossim/medinsight-v2')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
@@ -30,7 +34,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'consultations', 
+    'consultations',
+    'clinic',
 ]
 
 MIDDLEWARE = [

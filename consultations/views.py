@@ -103,7 +103,10 @@ def consultation_form(request):
             messages.error(request, 'Please correct the errors below.')
     else:
         settings = SystemSettings.load()
-        initial = {'language': settings.default_language}
+        initial = {
+            'language': settings.default_language,
+            'patient_id': request.GET.get('patient_id', '') # Capture patient_id from URL
+        }
         form = ConsultationForm(initial=initial)
     
     return render(request, 'consultations/consultation_form.html', {'form': form})
@@ -432,10 +435,14 @@ def settings_view(request):
     
     model_info = {'loaded': True, 'type': 'Hugging Face API'}
     
+    # Check if HF_TOKEN is configured
+    hf_token_configured = bool(django_settings.HF_TOKEN)
+
     context = {
         'form': form,
         'settings': settings_obj,
         'model_info': model_info,
+        'hf_token_configured': hf_token_configured,
     }
     return render(request, 'consultations/settings.html', context)
 
@@ -533,3 +540,42 @@ def export_training_data(request):
         response.write(json.dumps(data) + '\n')
         
     return response
+
+
+# ==================== INTEGRATION: SAVE TO CLINIC ====================
+
+def save_to_clinic(request, pk):
+    """
+    Save the AI consultation result as a Visit record in the Clinic App.
+    Links via patient_id.
+    """
+    consultation = get_object_or_404(Consultation, pk=pk)
+    
+    if not consultation.patient_id:
+        messages.error(request, "Error: No Patient linked to this consultation.")
+        return redirect('consultation_result', pk=pk)
+
+    # Late import to avoid circular dependency
+    from clinic.models import Patient, Visit
+
+    try:
+        # 1. Find the Patient by patient_id (PK)
+        patient = Patient.objects.get(pk=consultation.patient_id)
+        
+        # 2. Create the Visit Record
+        Visit.objects.create(
+            patient=patient,
+            symptoms=consultation.clinical_case, 
+            diagnosis=consultation.diagnosis or "See MedInsight Summary",
+            management_plan=consultation.management or "See MedInsight Summary"
+        )
+        
+        messages.success(request, f"Successfully saved Visit record for {patient.name}!")
+        return redirect('clinician_dashboard') # Redirect to Clinic Dashboard
+
+    except Patient.DoesNotExist:
+        messages.error(request, f"Error: Patient ID '{consultation.patient_id}' not found in Clinic database.")
+        return redirect('consultation_result', pk=pk)
+    except Exception as e:
+        messages.error(request, f"Integration Error: {str(e)}")
+        return redirect('consultation_result', pk=pk)

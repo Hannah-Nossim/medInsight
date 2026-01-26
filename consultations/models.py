@@ -7,8 +7,16 @@ class Consultation(models.Model):
         
     ]
     
+    # --- Link to Clinic App ---
+    patient_id = models.CharField(max_length=50, blank=True, null=True, help_text="Linked Patient ID from Clinic App")
+
     # --- Patient Details (Added to fix the crash) ---
-    patient_id = models.CharField(max_length=50, blank=True, null=True, verbose_name="Patient ID")
+    # patient_id was already here, but let's make sure it's used correctly or merged.
+    # The previous code had `patient_id` as "Patient ID" verbose name.
+    # Let's keep it but clarify it's the link.
+    # Actually, looking at previous file content, it HAD patient_id.
+    # I will just ensure it is there and used for this purpose.
+    # Wait, in the very first turn I tried to revert? Let's check the file content first.
     patient_age = models.PositiveIntegerField(blank=True, null=True, verbose_name="Age")
     patient_gender = models.CharField(max_length=20, blank=True, null=True, verbose_name="Gender", choices=[
         ('Male', 'Male'),
